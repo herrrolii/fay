@@ -29,6 +29,7 @@ KEY_H = _rl_int("KEY_H")
 KEY_ENTER = _rl_int("KEY_ENTER")
 KEY_KP_ENTER = _rl_int("KEY_KP_ENTER")
 KEY_SPACE = _rl_int("KEY_SPACE")
+DEFAULT_VISIBLE_CARDS = 5
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,6 +63,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Monitor index (defaults to current monitor).",
+    )
+    parser.add_argument(
+        "--visible-cards",
+        type=int,
+        default=DEFAULT_VISIBLE_CARDS,
+        help="Maximum cards shown at once (even values are reduced by one).",
     )
     return parser.parse_args()
 
@@ -116,18 +123,6 @@ def sample_curve(x: float, points: list[tuple[float, float]]) -> float:
             t = (x - x0) / (x1 - x0)
             return lerp(y0, y1, t)
     return points[-1][1]
-
-
-def circular_delta(index: int, center: int, count: int) -> int:
-    if count <= 0:
-        return 0
-    raw = index - center
-    half = count / 2.0
-    if raw > half:
-        raw -= count
-    elif raw < -half:
-        raw += count
-    return raw
 
 
 class TextureCache:
@@ -238,6 +233,7 @@ def draw_preview_card(
 def main() -> int:
     args = parse_args()
     wallpaper_dir = Path(args.directory).expanduser()
+    max_visible_cards = max(1, args.visible_cards)
 
     images = list_images(wallpaper_dir)
     selected = 0
@@ -269,12 +265,20 @@ def main() -> int:
             break
 
         moved = False
+        visible_count = 1
+        side_count = 0
         if rl.is_key_pressed(KEY_R):
             images = list_images(wallpaper_dir)
             selected = clamp(selected, 0, max(0, len(images) - 1))
             cache.clear()
 
         if images:
+            visible_count = min(len(images), max_visible_cards)
+            if visible_count % 2 == 0:
+                visible_count -= 1
+            visible_count = max(1, visible_count)
+            side_count = visible_count // 2
+
             if (
                 rl.is_key_pressed(KEY_RIGHT)
                 or rl.is_key_pressed(KEY_D)
@@ -300,10 +304,9 @@ def main() -> int:
                 apply_wallpaper(images[selected], args.mode)
 
             if moved:
-                cache.get(images[selected])
-                if len(images) > 1:
-                    cache.get(images[(selected - 1) % len(images)])
-                    cache.get(images[(selected + 1) % len(images)])
+                prefetch_side = min(len(images) - 1, side_count + 1)
+                for rel in range(-prefetch_side, prefetch_side + 1):
+                    cache.get(images[(selected + rel) % len(images)])
                 animation_offset = max(-3.0, min(3.0, animation_offset))
 
             animation_offset = lerp(animation_offset, 0.0, 0.24)
@@ -314,17 +317,23 @@ def main() -> int:
         rl.clear_background(transparent)
 
         if images:
-            max_visible_depth = 3.1
-            entries: list[tuple[float, int, float]] = []
-            for idx in range(len(images)):
-                rel = circular_delta(idx, selected, len(images))
+            candidate_span = min(len(images) - 1, side_count + 2)
+            closest_by_index: dict[int, tuple[float, float]] = {}
+            for rel in range(-candidate_span, candidate_span + 1):
+                idx = (selected + rel) % len(images)
                 pos = rel + animation_offset
                 depth = abs(pos)
-                if depth > max_visible_depth:
-                    continue
-                entries.append((depth, idx, pos))
+                prev = closest_by_index.get(idx)
+                if prev is None or depth < prev[0]:
+                    closest_by_index[idx] = (depth, pos)
 
-            for _, idx, pos in sorted(entries, key=lambda item: item[0], reverse=True):
+            ranked = sorted(
+                ((depth, idx, pos) for idx, (depth, pos) in closest_by_index.items()),
+                key=lambda item: item[0],
+            )
+            visible_entries = ranked[:visible_count]
+
+            for _, idx, pos in sorted(visible_entries, key=lambda item: item[0], reverse=True):
                 depth = abs(pos)
                 scale = sample_curve(depth, depth_points)
                 card_w = args.width * 0.35 * scale

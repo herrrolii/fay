@@ -20,3 +20,9 @@ uv run python main.py ~/Pictures/Wallpapers
 ```bash
 uv run python main.py ~/Pictures/Wallpapers --width 1100 --height 280 --mode bg-fill
 ```
+
+```bash
+uv run python main.py ~/Pictures/Wallpapers --visible-cards 5
+```
+
+`--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
