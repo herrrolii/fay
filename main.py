@@ -1,5 +1,6 @@
 import argparse
 from collections import OrderedDict
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any, cast
@@ -28,7 +29,6 @@ KEY_A = _rl_int("KEY_A")
 KEY_H = _rl_int("KEY_H")
 KEY_ENTER = _rl_int("KEY_ENTER")
 KEY_KP_ENTER = _rl_int("KEY_KP_ENTER")
-KEY_SPACE = _rl_int("KEY_SPACE")
 DEFAULT_VISIBLE_CARDS = 5
 
 
@@ -101,6 +101,34 @@ def apply_wallpaper(image_path: Path, mode: str) -> tuple[bool, str]:
         message = proc.stderr.strip() or proc.stdout.strip() or "feh failed."
         return False, message
     return True, f"Applied: {image_path.name}"
+
+
+def get_startup_feh_command() -> list[str] | None:
+    fehbg_path = Path("~/.fehbg").expanduser()
+    if not fehbg_path.exists():
+        return None
+
+    try:
+        lines = fehbg_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return None
+
+    last_command: list[str] | None = None
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        try:
+            parts = shlex.split(stripped)
+        except ValueError:
+            continue
+        if parts and Path(parts[0]).name == "feh":
+            last_command = parts
+    return last_command
+
+
+def extract_image_paths_from_feh(command: list[str]) -> list[Path]:
+    return [Path(arg).expanduser() for arg in command[1:] if not arg.startswith("-")]
 
 
 def clamp(value: int, low: int, high: int) -> int:
@@ -234,9 +262,20 @@ def main() -> int:
     args = parse_args()
     wallpaper_dir = Path(args.directory).expanduser()
     max_visible_cards = max(1, args.visible_cards)
+    startup_feh_command = get_startup_feh_command()
 
     images = list_images(wallpaper_dir)
     selected = 0
+    confirmed_selection = False
+
+    if startup_feh_command and images:
+        image_lookup = {str(path.resolve()): idx for idx, path in enumerate(images)}
+        for startup_image in reversed(extract_image_paths_from_feh(startup_feh_command)):
+            key = str(startup_image.resolve())
+            found = image_lookup.get(key)
+            if found is not None:
+                selected = found
+                break
 
     rl.set_config_flags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST | FLAG_WINDOW_TRANSPARENT)
     rl.init_window(args.width, args.height, "fay wallpaper picker")
@@ -262,6 +301,11 @@ def main() -> int:
 
     while True:
         if rl.window_should_close() or rl.is_key_pressed(KEY_ESCAPE) or rl.is_key_pressed(KEY_Q):
+            if not confirmed_selection and startup_feh_command:
+                try:
+                    subprocess.run(startup_feh_command, check=False)
+                except OSError:
+                    pass
             break
 
         moved = False
@@ -279,29 +323,31 @@ def main() -> int:
             visible_count = max(1, visible_count)
             side_count = visible_count // 2
 
+            slide_delta = 0
             if (
                 rl.is_key_pressed(KEY_RIGHT)
                 or rl.is_key_pressed(KEY_D)
                 or rl.is_key_pressed(KEY_L)
             ) and len(images) > 1:
-                selected = (selected + 1) % len(images)
-                animation_offset += 1.0
-                moved = True
+                slide_delta += 1
             if (
                 rl.is_key_pressed(KEY_LEFT)
                 or rl.is_key_pressed(KEY_A)
                 or rl.is_key_pressed(KEY_H)
             ) and len(images) > 1:
-                selected = (selected - 1) % len(images)
-                animation_offset -= 1.0
-                moved = True
+                slide_delta -= 1
 
-            if (
-                rl.is_key_pressed(KEY_ENTER)
-                or rl.is_key_pressed(KEY_KP_ENTER)
-                or rl.is_key_pressed(KEY_SPACE)
-            ):
+            if slide_delta != 0:
+                step = 1 if slide_delta > 0 else -1
+                selected = (selected + step) % len(images)
+                animation_offset += float(step)
+                moved = True
                 apply_wallpaper(images[selected], args.mode)
+
+            if rl.is_key_pressed(KEY_ENTER) or rl.is_key_pressed(KEY_KP_ENTER):
+                apply_wallpaper(images[selected], args.mode)
+                confirmed_selection = True
+                break
 
             if moved:
                 prefetch_side = min(len(images) - 1, side_count + 1)

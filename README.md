@@ -11,9 +11,10 @@ uv run python main.py ~/Pictures/Wallpapers
 ## Controls
 
 - `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
-- `Enter` or `Space`: apply selected image with `feh`
+- Moving selection automatically applies wallpaper with `feh` (once per slide)
+- `Enter`: confirm current wallpaper and close
+- `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
 - `R`: refresh directory contents
-- `Esc` or `Q`: quit
 
 ## Useful flags
 
