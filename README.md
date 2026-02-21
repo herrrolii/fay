@@ -1,6 +1,6 @@
 # fay
 
-Small raylib overlay that lists wallpapers from a directory and applies the selected file with `feh`.
+Small raylib overlay that shows a bottom carousel of wallpaper previews and applies the selected file with `feh`.
 
 ## Run
 
@@ -10,8 +10,7 @@ uv run python main.py ~/Pictures/Wallpapers
 
 ## Controls
 
-- `Up/Down` or `J/K`: move selection
-- Mouse wheel / click: move or pick selection
+- `Left/Right` (or `A/D`, `H/L`): move selection in the carousel
 - `Enter` or `Space`: apply selected image with `feh`
 - `R`: refresh directory contents
 - `Esc` or `Q`: quit
