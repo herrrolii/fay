@@ -10,7 +10,7 @@ uv run python main.py ~/Pictures/Wallpapers
 
 ## Controls
 
-- `Left/Right` (or `A/D`, `H/L`): move selection in the carousel
+- `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
 - `Enter` or `Space`: apply selected image with `feh`
 - `R`: refresh directory contents
 - `Esc` or `Q`: quit

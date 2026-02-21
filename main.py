@@ -77,6 +77,36 @@ def clamp(value: int, low: int, high: int) -> int:
     return max(low, min(value, high))
 
 
+def lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
+def sample_curve(x: float, points: list[tuple[float, float]]) -> float:
+    if x <= points[0][0]:
+        return points[0][1]
+    for idx in range(1, len(points)):
+        x0, y0 = points[idx - 1]
+        x1, y1 = points[idx]
+        if x <= x1:
+            if x1 == x0:
+                return y1
+            t = (x - x0) / (x1 - x0)
+            return lerp(y0, y1, t)
+    return points[-1][1]
+
+
+def circular_delta(index: int, center: int, count: int) -> int:
+    if count <= 0:
+        return 0
+    raw = index - center
+    half = count / 2.0
+    if raw > half:
+        raw -= count
+    elif raw < -half:
+        raw += count
+    return raw
+
+
 class TextureCache:
     def __init__(self, max_items: int = 24) -> None:
         self.max_items = max_items
@@ -211,6 +241,15 @@ def main() -> int:
     panel = Rectangle(0, 0, float(args.width), float(args.height))
     center_x = args.width * 0.5
     center_y = args.height * 0.52
+    animation_offset = 0.0
+    depth_points = [(0.0, 1.0), (1.0, 0.76), (2.0, 0.56), (3.0, 0.42)]
+    alpha_points = [(0.0, 255.0), (1.0, 205.0), (2.0, 155.0), (3.0, 100.0)]
+    gap_points = [
+        (0.0, 0.0),
+        (1.0, args.width * 0.24),
+        (2.0, args.width * 0.4),
+        (3.0, args.width * 0.52),
+    ]
 
     while True:
         if window_should_close() or is_key_pressed(KEY_ESCAPE) or is_key_pressed(KEY_Q):
@@ -229,15 +268,17 @@ def main() -> int:
                 is_key_pressed(KEY_RIGHT)
                 or is_key_pressed(KEY_D)
                 or is_key_pressed(KEY_L)
-            ):
-                selected = min(selected + 1, len(images) - 1)
+            ) and len(images) > 1:
+                selected = (selected + 1) % len(images)
+                animation_offset += 1.0
                 moved = True
             if (
                 is_key_pressed(KEY_LEFT)
                 or is_key_pressed(KEY_A)
                 or is_key_pressed(KEY_H)
-            ):
-                selected = max(selected - 1, 0)
+            ) and len(images) > 1:
+                selected = (selected - 1) % len(images)
+                animation_offset -= 1.0
                 moved = True
 
             if (
@@ -256,10 +297,14 @@ def main() -> int:
 
             if moved:
                 cache.get(images[selected])
-                if selected - 1 >= 0:
-                    cache.get(images[selected - 1])
-                if selected + 1 < len(images):
-                    cache.get(images[selected + 1])
+                if len(images) > 1:
+                    cache.get(images[(selected - 1) % len(images)])
+                    cache.get(images[(selected + 1) % len(images)])
+                animation_offset = max(-3.0, min(3.0, animation_offset))
+
+            animation_offset = lerp(animation_offset, 0.0, 0.24)
+            if abs(animation_offset) < 0.01:
+                animation_offset = 0.0
 
         begin_drawing()
         clear_background(background_color)
@@ -269,21 +314,23 @@ def main() -> int:
         if not images:
             draw_text("No images found in directory.", 24, args.height // 2 - 12, 24, ORANGE)
         else:
-            scales = {0: 1.0, 1: 0.76, 2: 0.56}
-            alphas = {0: 255, 1: 205, 2: 155}
-            gaps = {0: 0.0, 1: args.width * 0.24, 2: args.width * 0.4}
-            order = [-2, 2, -1, 1, 0]
-
-            for rel in order:
-                idx = selected + rel
-                if idx < 0 or idx >= len(images):
+            max_visible_depth = 3.1
+            entries: list[tuple[float, int, float]] = []
+            for idx in range(len(images)):
+                rel = circular_delta(idx, selected, len(images))
+                pos = rel + animation_offset
+                depth = abs(pos)
+                if depth > max_visible_depth:
                     continue
+                entries.append((depth, idx, pos))
 
-                depth = abs(rel)
-                scale = scales[depth]
+            for _, idx, pos in sorted(entries, key=lambda item: item[0], reverse=True):
+                depth = abs(pos)
+                scale = sample_curve(depth, depth_points)
                 card_w = args.width * 0.35 * scale
                 card_h = args.height * 0.78 * scale
-                offset_x = gaps[depth] * (1 if rel > 0 else -1)
+                offset_mag = sample_curve(depth, gap_points)
+                offset_x = offset_mag * (1 if pos >= 0 else -1)
 
                 card = Rectangle(
                     center_x + offset_x - card_w * 0.5,
@@ -291,8 +338,9 @@ def main() -> int:
                     card_w,
                     card_h,
                 )
-                tint = Color(255, 255, 255, alphas[depth])
-                draw_preview_card(cache, images[idx], card, tint, rel == 0)
+                alpha = int(sample_curve(depth, alpha_points))
+                tint = Color(255, 255, 255, alpha)
+                draw_preview_card(cache, images[idx], card, tint, depth < 0.32)
 
         if status and status_frames > 0:
             status_box = Rectangle(12, args.height - 34, args.width - 24, 24)
