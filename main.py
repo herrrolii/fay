@@ -15,6 +15,7 @@ def _rl_int(name: str) -> int:
 
 FLAG_WINDOW_UNDECORATED = _rl_int("FLAG_WINDOW_UNDECORATED")
 FLAG_WINDOW_TOPMOST = _rl_int("FLAG_WINDOW_TOPMOST")
+FLAG_WINDOW_TRANSPARENT = _rl_int("FLAG_WINDOW_TRANSPARENT")
 KEY_NULL = _rl_int("KEY_NULL")
 KEY_ESCAPE = _rl_int("KEY_ESCAPE")
 KEY_Q = _rl_int("KEY_Q")
@@ -240,16 +241,8 @@ def main() -> int:
 
     images = list_images(wallpaper_dir)
     selected = 0
-    status = ""
-    status_color = rl.LIGHTGRAY
-    status_frames = 0
 
-    if not wallpaper_dir.exists() or not wallpaper_dir.is_dir():
-        status = f"Directory not found: {wallpaper_dir}"
-        status_color = rl.ORANGE
-        status_frames = 1000000
-
-    rl.set_config_flags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST)
+    rl.set_config_flags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST | FLAG_WINDOW_TRANSPARENT)
     rl.init_window(args.width, args.height, "fay wallpaper picker")
     rl.set_target_fps(60)
     rl.set_exit_key(KEY_NULL)
@@ -258,9 +251,7 @@ def main() -> int:
     place_window_at_bottom(args.width, args.height, args.margin, monitor)
 
     cache = TextureCache()
-    background_color = rl.Color(16, 18, 22, 255)
-    panel_color = rl.Color(24, 28, 35, 255)
-    panel = rl.Rectangle(0, 0, float(args.width), float(args.height))
+    transparent = rl.Color(0, 0, 0, 0)
     center_x = args.width * 0.5
     center_y = args.height * 0.52
     animation_offset = 0.0
@@ -281,8 +272,6 @@ def main() -> int:
         if rl.is_key_pressed(KEY_R):
             images = list_images(wallpaper_dir)
             selected = clamp(selected, 0, max(0, len(images) - 1))
-            status = ""
-            status_frames = 0
             cache.clear()
 
         if images:
@@ -308,14 +297,7 @@ def main() -> int:
                 or rl.is_key_pressed(KEY_KP_ENTER)
                 or rl.is_key_pressed(KEY_SPACE)
             ):
-                ok, message = apply_wallpaper(images[selected], args.mode)
-                if ok:
-                    status = ""
-                    status_frames = 0
-                else:
-                    status = message
-                    status_color = rl.RED
-                    status_frames = 150
+                apply_wallpaper(images[selected], args.mode)
 
             if moved:
                 cache.get(images[selected])
@@ -329,13 +311,9 @@ def main() -> int:
                 animation_offset = 0.0
 
         rl.begin_drawing()
-        rl.clear_background(background_color)
-        rl.draw_rectangle_rounded(panel, 0.06, 10, panel_color)
-        rl.draw_rectangle_lines_ex(panel, 1.0, rl.Color(120, 130, 145, 180))
+        rl.clear_background(transparent)
 
-        if not images:
-            rl.draw_text("No images found in directory.", 24, args.height // 2 - 12, 24, rl.ORANGE)
-        else:
+        if images:
             max_visible_depth = 3.1
             entries: list[tuple[float, int, float]] = []
             for idx in range(len(images)):
@@ -363,12 +341,6 @@ def main() -> int:
                 alpha = int(sample_curve(depth, alpha_points))
                 tint = rl.Color(255, 255, 255, alpha)
                 draw_preview_card(cache, images[idx], card, tint, depth < 0.32)
-
-        if status and status_frames > 0:
-            status_box = rl.Rectangle(12, args.height - 34, args.width - 24, 24)
-            rl.draw_rectangle_rounded(status_box, 0.2, 8, rl.Color(0, 0, 0, 145))
-            rl.draw_text(status, 20, args.height - 29, 16, status_color)
-            status_frames -= 1
         rl.end_drawing()
 
     cache.clear()
