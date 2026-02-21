@@ -2,10 +2,32 @@ import argparse
 from collections import OrderedDict
 import subprocess
 from pathlib import Path
+from typing import Any, cast
 
-from pyray import *
+import pyray as rl
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
+
+
+def _rl_int(name: str) -> int:
+    return cast(int, getattr(rl, name))
+
+
+FLAG_WINDOW_UNDECORATED = _rl_int("FLAG_WINDOW_UNDECORATED")
+FLAG_WINDOW_TOPMOST = _rl_int("FLAG_WINDOW_TOPMOST")
+KEY_NULL = _rl_int("KEY_NULL")
+KEY_ESCAPE = _rl_int("KEY_ESCAPE")
+KEY_Q = _rl_int("KEY_Q")
+KEY_R = _rl_int("KEY_R")
+KEY_RIGHT = _rl_int("KEY_RIGHT")
+KEY_D = _rl_int("KEY_D")
+KEY_L = _rl_int("KEY_L")
+KEY_LEFT = _rl_int("KEY_LEFT")
+KEY_A = _rl_int("KEY_A")
+KEY_H = _rl_int("KEY_H")
+KEY_ENTER = _rl_int("KEY_ENTER")
+KEY_KP_ENTER = _rl_int("KEY_KP_ENTER")
+KEY_SPACE = _rl_int("KEY_SPACE")
 
 
 def parse_args() -> argparse.Namespace:
@@ -110,10 +132,10 @@ def circular_delta(index: int, center: int, count: int) -> int:
 class TextureCache:
     def __init__(self, max_items: int = 24) -> None:
         self.max_items = max_items
-        self.cache: OrderedDict[str, object] = OrderedDict()
+        self.cache: OrderedDict[str, Any] = OrderedDict()
         self.failed: set[str] = set()
 
-    def get(self, image_path: Path):
+    def get(self, image_path: Path) -> Any | None:
         key = str(image_path)
         if key in self.cache:
             self.cache.move_to_end(key)
@@ -121,7 +143,7 @@ class TextureCache:
         if key in self.failed:
             return None
 
-        texture = load_texture(key)
+        texture = cast(Any, rl.load_texture(key))
         if texture.id == 0:
             self.failed.add(key)
             return None
@@ -130,30 +152,30 @@ class TextureCache:
         if len(self.cache) > self.max_items:
             _, oldest = self.cache.popitem(last=False)
             if oldest.id != 0:
-                unload_texture(oldest)
+                rl.unload_texture(cast(Any, oldest))
         return texture
 
     def clear(self) -> None:
         for texture in self.cache.values():
             if texture.id != 0:
-                unload_texture(texture)
+                rl.unload_texture(cast(Any, texture))
         self.cache.clear()
         self.failed.clear()
 
 
 def place_window_at_bottom(width: int, height: int, margin: int, monitor: int) -> None:
-    monitor_pos = get_monitor_position(monitor)
+    monitor_pos = rl.get_monitor_position(monitor)
     monitor_x = int(monitor_pos.x)
     monitor_y = int(monitor_pos.y)
-    monitor_width = get_monitor_width(monitor)
-    monitor_height = get_monitor_height(monitor)
+    monitor_width = rl.get_monitor_width(monitor)
+    monitor_height = rl.get_monitor_height(monitor)
 
     x = monitor_x + (monitor_width - width) // 2
     y = monitor_y + monitor_height - height - margin
-    set_window_position(max(monitor_x, x), max(monitor_y, y))
+    rl.set_window_position(max(monitor_x, x), max(monitor_y, y))
 
 
-def fit_texture_rect(texture, box: Rectangle) -> Rectangle:
+def fit_texture_rect(texture: Any, box: rl.Rectangle) -> rl.Rectangle:
     if texture.width <= 0 or texture.height <= 0:
         return box
 
@@ -162,51 +184,51 @@ def fit_texture_rect(texture, box: Rectangle) -> Rectangle:
     height = texture.height * scale
     x = box.x + (box.width - width) * 0.5
     y = box.y + (box.height - height) * 0.5
-    return Rectangle(x, y, width, height)
+    return rl.Rectangle(x, y, width, height)
 
 
 def draw_preview_card(
     cache: TextureCache,
     image_path: Path,
-    card: Rectangle,
-    tint: Color,
+    card: rl.Rectangle,
+    tint: rl.Color,
     selected: bool,
 ) -> None:
-    shadow = Rectangle(card.x + 4, card.y + 8, card.width, card.height)
-    draw_rectangle_rounded(shadow, 0.07, 8, Color(0, 0, 0, 130))
+    shadow = rl.Rectangle(card.x + 4, card.y + 8, card.width, card.height)
+    rl.draw_rectangle_rounded(shadow, 0.07, 8, rl.Color(0, 0, 0, 130))
 
-    frame_color = Color(245, 245, 245, 245) if selected else Color(205, 205, 205, 215)
-    draw_rectangle_rounded(card, 0.07, 8, frame_color)
+    frame_color = rl.Color(245, 245, 245, 245) if selected else rl.Color(205, 205, 205, 215)
+    rl.draw_rectangle_rounded(card, 0.07, 8, frame_color)
 
-    inner = Rectangle(card.x + 5, card.y + 5, card.width - 10, card.height - 10)
-    draw_rectangle_rounded(inner, 0.06, 8, Color(10, 12, 15, tint.a))
+    inner = rl.Rectangle(card.x + 5, card.y + 5, card.width - 10, card.height - 10)
+    rl.draw_rectangle_rounded(inner, 0.06, 8, rl.Color(10, 12, 15, tint.a))
 
     texture = cache.get(image_path)
     if texture is None:
-        draw_rectangle_rounded(inner, 0.06, 8, Color(50, 55, 66, tint.a))
-        draw_line(
+        rl.draw_rectangle_rounded(inner, 0.06, 8, rl.Color(50, 55, 66, tint.a))
+        rl.draw_line(
             int(inner.x + 10),
             int(inner.y + 10),
             int(inner.x + inner.width - 10),
             int(inner.y + inner.height - 10),
-            Color(180, 180, 180, 200),
+            rl.Color(180, 180, 180, 200),
         )
-        draw_line(
+        rl.draw_line(
             int(inner.x + 10),
             int(inner.y + inner.height - 10),
             int(inner.x + inner.width - 10),
             int(inner.y + 10),
-            Color(180, 180, 180, 200),
+            rl.Color(180, 180, 180, 200),
         )
         return
 
-    source = Rectangle(0, 0, float(texture.width), float(texture.height))
+    source = rl.Rectangle(0, 0, float(texture.width), float(texture.height))
     destination = fit_texture_rect(texture, inner)
-    draw_texture_pro(
-        texture,
+    rl.draw_texture_pro(
+        cast(Any, texture),
         source,
         destination,
-        Vector2(0, 0),
+        rl.Vector2(0, 0),
         0.0,
         tint,
     )
@@ -219,26 +241,26 @@ def main() -> int:
     images = list_images(wallpaper_dir)
     selected = 0
     status = ""
-    status_color = LIGHTGRAY
+    status_color = rl.LIGHTGRAY
     status_frames = 0
 
     if not wallpaper_dir.exists() or not wallpaper_dir.is_dir():
         status = f"Directory not found: {wallpaper_dir}"
-        status_color = ORANGE
+        status_color = rl.ORANGE
         status_frames = 1000000
 
-    set_config_flags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST)
-    init_window(args.width, args.height, "fay wallpaper picker")
-    set_target_fps(60)
-    set_exit_key(KEY_NULL)
+    rl.set_config_flags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST)
+    rl.init_window(args.width, args.height, "fay wallpaper picker")
+    rl.set_target_fps(60)
+    rl.set_exit_key(KEY_NULL)
 
-    monitor = args.monitor if args.monitor is not None else get_current_monitor()
+    monitor = args.monitor if args.monitor is not None else rl.get_current_monitor()
     place_window_at_bottom(args.width, args.height, args.margin, monitor)
 
     cache = TextureCache()
-    background_color = Color(16, 18, 22, 255)
-    panel_color = Color(24, 28, 35, 255)
-    panel = Rectangle(0, 0, float(args.width), float(args.height))
+    background_color = rl.Color(16, 18, 22, 255)
+    panel_color = rl.Color(24, 28, 35, 255)
+    panel = rl.Rectangle(0, 0, float(args.width), float(args.height))
     center_x = args.width * 0.5
     center_y = args.height * 0.52
     animation_offset = 0.0
@@ -252,11 +274,11 @@ def main() -> int:
     ]
 
     while True:
-        if window_should_close() or is_key_pressed(KEY_ESCAPE) or is_key_pressed(KEY_Q):
+        if rl.window_should_close() or rl.is_key_pressed(KEY_ESCAPE) or rl.is_key_pressed(KEY_Q):
             break
 
         moved = False
-        if is_key_pressed(KEY_R):
+        if rl.is_key_pressed(KEY_R):
             images = list_images(wallpaper_dir)
             selected = clamp(selected, 0, max(0, len(images) - 1))
             status = ""
@@ -265,26 +287,26 @@ def main() -> int:
 
         if images:
             if (
-                is_key_pressed(KEY_RIGHT)
-                or is_key_pressed(KEY_D)
-                or is_key_pressed(KEY_L)
+                rl.is_key_pressed(KEY_RIGHT)
+                or rl.is_key_pressed(KEY_D)
+                or rl.is_key_pressed(KEY_L)
             ) and len(images) > 1:
                 selected = (selected + 1) % len(images)
                 animation_offset += 1.0
                 moved = True
             if (
-                is_key_pressed(KEY_LEFT)
-                or is_key_pressed(KEY_A)
-                or is_key_pressed(KEY_H)
+                rl.is_key_pressed(KEY_LEFT)
+                or rl.is_key_pressed(KEY_A)
+                or rl.is_key_pressed(KEY_H)
             ) and len(images) > 1:
                 selected = (selected - 1) % len(images)
                 animation_offset -= 1.0
                 moved = True
 
             if (
-                is_key_pressed(KEY_ENTER)
-                or is_key_pressed(KEY_KP_ENTER)
-                or is_key_pressed(KEY_SPACE)
+                rl.is_key_pressed(KEY_ENTER)
+                or rl.is_key_pressed(KEY_KP_ENTER)
+                or rl.is_key_pressed(KEY_SPACE)
             ):
                 ok, message = apply_wallpaper(images[selected], args.mode)
                 if ok:
@@ -292,7 +314,7 @@ def main() -> int:
                     status_frames = 0
                 else:
                     status = message
-                    status_color = RED
+                    status_color = rl.RED
                     status_frames = 150
 
             if moved:
@@ -306,13 +328,13 @@ def main() -> int:
             if abs(animation_offset) < 0.01:
                 animation_offset = 0.0
 
-        begin_drawing()
-        clear_background(background_color)
-        draw_rectangle_rounded(panel, 0.06, 10, panel_color)
-        draw_rectangle_lines_ex(panel, 1.0, Color(120, 130, 145, 180))
+        rl.begin_drawing()
+        rl.clear_background(background_color)
+        rl.draw_rectangle_rounded(panel, 0.06, 10, panel_color)
+        rl.draw_rectangle_lines_ex(panel, 1.0, rl.Color(120, 130, 145, 180))
 
         if not images:
-            draw_text("No images found in directory.", 24, args.height // 2 - 12, 24, ORANGE)
+            rl.draw_text("No images found in directory.", 24, args.height // 2 - 12, 24, rl.ORANGE)
         else:
             max_visible_depth = 3.1
             entries: list[tuple[float, int, float]] = []
@@ -332,25 +354,25 @@ def main() -> int:
                 offset_mag = sample_curve(depth, gap_points)
                 offset_x = offset_mag * (1 if pos >= 0 else -1)
 
-                card = Rectangle(
+                card = rl.Rectangle(
                     center_x + offset_x - card_w * 0.5,
                     center_y - card_h * 0.5,
                     card_w,
                     card_h,
                 )
                 alpha = int(sample_curve(depth, alpha_points))
-                tint = Color(255, 255, 255, alpha)
+                tint = rl.Color(255, 255, 255, alpha)
                 draw_preview_card(cache, images[idx], card, tint, depth < 0.32)
 
         if status and status_frames > 0:
-            status_box = Rectangle(12, args.height - 34, args.width - 24, 24)
-            draw_rectangle_rounded(status_box, 0.2, 8, Color(0, 0, 0, 145))
-            draw_text(status, 20, args.height - 29, 16, status_color)
+            status_box = rl.Rectangle(12, args.height - 34, args.width - 24, 24)
+            rl.draw_rectangle_rounded(status_box, 0.2, 8, rl.Color(0, 0, 0, 145))
+            rl.draw_text(status, 20, args.height - 29, 16, status_color)
             status_frames -= 1
-        end_drawing()
+        rl.end_drawing()
 
     cache.clear()
-    close_window()
+    rl.close_window()
     return 0
 
 
