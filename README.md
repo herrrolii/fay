@@ -2,6 +2,23 @@
 
 Small raylib overlay that shows a bottom carousel of wallpaper previews and applies the selected file with `feh`.
 
+## Install
+
+System dependency:
+- `feh` must be installed (for example `sudo apt install feh` or `sudo pacman -S feh`).
+
+One-command app install:
+
+```bash
+pipx install "git+https://github.com/herrrolii/fay.git"
+```
+
+Then run:
+
+```bash
+fay
+```
+
 ## Run
 
 ```bash

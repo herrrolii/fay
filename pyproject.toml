@@ -1,9 +1,19 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "fay"
 version = "0.1.0"
-description = "Add your description here"
+description = "Raylib wallpaper carousel overlay for feh"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
     "raylib==5.5.0.4",
 ]
+
+[project.scripts]
+fay = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
