@@ -8,6 +8,8 @@ from typing import Any, cast
 import pyray as rl
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
+FEH_MODES = ("auto", "bg-fill", "bg-center", "bg-max", "bg-scale", "bg-tile")
+FEH_AUTO_ASPECT_RATIO_FACTOR = 1.75
 
 
 def _rl_int(name: str) -> int:
@@ -44,9 +46,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        default="bg-fill",
-        choices=["bg-fill", "bg-center", "bg-max", "bg-scale", "bg-tile"],
-        help="feh background mode.",
+        default="auto",
+        choices=list(FEH_MODES),
+        help="Wallpaper mode. 'auto' picks bg-fill or bg-center based on image size/orientation.",
     )
     parser.add_argument("--width", type=int, default=1000, help="Overlay width in pixels.")
     parser.add_argument(
@@ -86,10 +88,53 @@ def list_images(directory: Path) -> list[Path]:
     )
 
 
-def apply_wallpaper(image_path: Path, mode: str) -> tuple[bool, str]:
+def resolve_feh_mode(
+    image_path: Path,
+    mode: str,
+    screen_width: int,
+    screen_height: int,
+    cache: "TextureCache",
+) -> str:
+    if mode != "auto":
+        return mode
+
+    texture = cache.get(image_path)
+    if texture is None or texture.id == 0:
+        return "bg-fill"
+
+    image_width = int(getattr(texture, "width", 0))
+    image_height = int(getattr(texture, "height", 0))
+    if image_width <= 0 or image_height <= 0 or screen_width <= 0 or screen_height <= 0:
+        return "bg-fill"
+
+    if image_width < screen_width or image_height < screen_height:
+        return "bg-center"
+
+    screen_landscape = screen_width >= screen_height
+    image_landscape = image_width >= image_height
+    if screen_landscape != image_landscape:
+        return "bg-center"
+
+    screen_ratio = screen_width / screen_height
+    image_ratio = image_width / image_height
+    ratio_factor = max(screen_ratio / image_ratio, image_ratio / screen_ratio)
+    if ratio_factor >= FEH_AUTO_ASPECT_RATIO_FACTOR:
+        return "bg-center"
+
+    return "bg-fill"
+
+
+def apply_wallpaper(
+    image_path: Path,
+    mode: str,
+    screen_width: int,
+    screen_height: int,
+    cache: "TextureCache",
+) -> tuple[bool, str]:
+    effective_mode = resolve_feh_mode(image_path, mode, screen_width, screen_height, cache)
     try:
         proc = subprocess.run(
-            ["feh", f"--{mode}", str(image_path)],
+            ["feh", f"--{effective_mode}", str(image_path)],
             capture_output=True,
             text=True,
             check=False,
@@ -100,7 +145,7 @@ def apply_wallpaper(image_path: Path, mode: str) -> tuple[bool, str]:
     if proc.returncode != 0:
         message = proc.stderr.strip() or proc.stdout.strip() or "feh failed."
         return False, message
-    return True, f"Applied: {image_path.name}"
+    return True, f"Applied (--{effective_mode}): {image_path.name}"
 
 
 def get_startup_feh_command() -> list[str] | None:
@@ -283,6 +328,8 @@ def main() -> int:
     rl.set_exit_key(KEY_NULL)
 
     monitor = args.monitor if args.monitor is not None else rl.get_current_monitor()
+    monitor_width = rl.get_monitor_width(monitor)
+    monitor_height = rl.get_monitor_height(monitor)
     place_window_at_bottom(args.width, args.height, args.margin, monitor)
 
     cache = TextureCache()
@@ -342,10 +389,22 @@ def main() -> int:
                 selected = (selected + step) % len(images)
                 animation_offset += float(step)
                 moved = True
-                apply_wallpaper(images[selected], args.mode)
+                apply_wallpaper(
+                    images[selected],
+                    args.mode,
+                    monitor_width,
+                    monitor_height,
+                    cache,
+                )
 
             if rl.is_key_pressed(KEY_ENTER) or rl.is_key_pressed(KEY_KP_ENTER):
-                apply_wallpaper(images[selected], args.mode)
+                apply_wallpaper(
+                    images[selected],
+                    args.mode,
+                    monitor_width,
+                    monitor_height,
+                    cache,
+                )
                 confirmed_selection = True
                 break
 

@@ -46,3 +46,9 @@ fay ~/Pictures/Wallpapers --visible-cards 5
 ```
 
 `--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
+
+`--mode` supports: `auto` (default), `bg-fill`, `bg-center`, `bg-max`, `bg-scale`, `bg-tile`.
+In `auto` mode, `fay` uses:
+- `bg-center` for images smaller than the monitor, or with opposite orientation (portrait vs landscape).
+- `bg-center` for extreme aspect-ratio mismatch (ratio factor >= `1.75`).
+- `bg-fill` otherwise.
