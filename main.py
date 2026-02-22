@@ -39,8 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "directory",
         nargs="?",
-        default="~/.config/rice/current/theme/wallpapers",
-        help="Directory containing wallpaper images.",
+        default=None,
+        help="Directory containing wallpaper images (defaults to current working directory).",
     )
     parser.add_argument(
         "--mode",
@@ -260,7 +260,7 @@ def draw_preview_card(
 
 def main() -> int:
     args = parse_args()
-    wallpaper_dir = Path(args.directory).expanduser()
+    wallpaper_dir = Path(args.directory).expanduser() if args.directory else Path.cwd()
     max_visible_cards = max(1, args.visible_cards)
     startup_feh_command = get_startup_feh_command()
 

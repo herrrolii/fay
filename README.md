@@ -22,8 +22,10 @@ fay
 ## Run
 
 ```bash
-uv run python main.py ~/Pictures/Wallpapers
+fay ~/Pictures/Wallpapers
 ```
+
+`fay` with no arguments defaults to the current working directory.
 
 ## Controls
 
@@ -36,11 +38,11 @@ uv run python main.py ~/Pictures/Wallpapers
 ## Useful flags
 
 ```bash
-uv run python main.py ~/Pictures/Wallpapers --width 1100 --height 280 --mode bg-fill
+fay ~/Pictures/Wallpapers --width 1100 --height 280 --mode bg-fill
 ```
 
 ```bash
-uv run python main.py ~/Pictures/Wallpapers --visible-cards 5
+fay ~/Pictures/Wallpapers --visible-cards 5
 ```
 
 `--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
