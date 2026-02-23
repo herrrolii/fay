@@ -15,7 +15,7 @@ FEH_MODES = ("auto", "bg-fill", "bg-center", "bg-max", "bg-scale", "bg-tile")
 FEH_AUTO_ASPECT_RATIO_FACTOR = 1.75
 HOLD_REPEAT_DELAY = 0.22
 HOLD_REPEAT_INTERVAL = 0.055
-PREVIEW_APPLY_DELAY = 0.12
+DEFAULT_PREVIEW_DELAY = 0.18
 THUMB_MAX_WIDTH = 720
 THUMB_MAX_HEIGHT = 480
 THUMB_BUILD_BUDGET_IDLE = 1
@@ -85,8 +85,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--auto-preview",
         action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Apply wallpaper while browsing after a short delay (disabled by default).",
+        default=True,
+        help="Apply wallpaper while browsing after a short delay (enabled by default).",
+    )
+    parser.add_argument(
+        "--preview-delay",
+        type=float,
+        default=DEFAULT_PREVIEW_DELAY,
+        help="Seconds to stay on a card before auto-preview applies (used with --auto-preview).",
     )
     return parser.parse_args()
 
@@ -488,8 +494,9 @@ def main() -> int:
     hold_elapsed = 0.0
     repeat_elapsed = 0.0
     auto_preview_enabled = args.auto_preview
-    pending_preview_index: int | None = None
-    pending_preview_wait = 0.0
+    preview_delay = max(0.0, args.preview_delay)
+    selection_dwell_time = 0.0
+    last_auto_preview_index: int | None = None
 
     while True:
         frame_time = rl.get_frame_time()
@@ -509,13 +516,11 @@ def main() -> int:
             selected = clamp(selected, 0, max(0, len(images) - 1))
             cache.clear()
             image_size_cache.clear()
-            if not auto_preview_enabled or not images:
-                pending_preview_index = None
-                pending_preview_wait = 0.0
-            elif pending_preview_index is not None:
-                pending_preview_index = clamp(pending_preview_index, 0, len(images) - 1)
+            selection_dwell_time = 0.0
+            last_auto_preview_index = None
 
         if images:
+            previous_selected = selected
             visible_count = min(len(images), max_visible_cards)
             if visible_count % 2 == 0:
                 visible_count -= 1
@@ -565,15 +570,16 @@ def main() -> int:
                     selected = (selected + step) % len(images)
                     animation_offset += float(step)
                 moved = True
-                if auto_preview_enabled:
-                    pending_preview_index = selected
-                    pending_preview_wait = PREVIEW_APPLY_DELAY
-                else:
-                    pending_preview_index = None
-                    pending_preview_wait = 0.0
+
+            if selected != previous_selected:
+                selection_dwell_time = 0.0
+                last_auto_preview_index = None
+            elif navigation_key_down:
+                selection_dwell_time = 0.0
+            else:
+                selection_dwell_time += frame_time
+
             if rl.is_key_pressed(KEY_ENTER) or rl.is_key_pressed(KEY_KP_ENTER):
-                pending_preview_index = None
-                pending_preview_wait = 0.0
                 apply_wallpaper(
                     images[selected],
                     args.mode,
@@ -590,22 +596,22 @@ def main() -> int:
                     cache.request(images[(selected + rel) % len(images)])
                 animation_offset = max(-3.0, min(3.0, animation_offset))
 
-            if auto_preview_enabled and pending_preview_index is not None:
-                if pending_preview_index < 0 or pending_preview_index >= len(images):
-                    pending_preview_index = None
-                    pending_preview_wait = 0.0
-                else:
-                    pending_preview_wait -= frame_time
-                    if pending_preview_wait <= 0.0:
-                        apply_wallpaper(
-                            images[pending_preview_index],
-                            args.mode,
-                            monitor_width,
-                            monitor_height,
-                            image_size_cache,
-                        )
-                        pending_preview_index = None
-                        pending_preview_wait = 0.0
+            if (
+                auto_preview_enabled
+                and not navigation_key_down
+                and selection_dwell_time >= preview_delay
+                and last_auto_preview_index != selected
+            ):
+                selected_texture = cache.get(images[selected])
+                if selected_texture is not None:
+                    apply_wallpaper(
+                        images[selected],
+                        args.mode,
+                        monitor_width,
+                        monitor_height,
+                        image_size_cache,
+                    )
+                    last_auto_preview_index = selected
 
             if not navigation_key_down:
                 thumbnail_store.process(THUMB_BUILD_BUDGET_IDLE)
@@ -617,8 +623,8 @@ def main() -> int:
             held_direction = 0
             hold_elapsed = 0.0
             repeat_elapsed = 0.0
-            pending_preview_index = None
-            pending_preview_wait = 0.0
+            selection_dwell_time = 0.0
+            last_auto_preview_index = None
 
         rl.begin_drawing()
         rl.clear_background(transparent)
