@@ -1,5 +1,8 @@
 import argparse
 from collections import OrderedDict
+from collections import deque
+import hashlib
+import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -13,6 +16,10 @@ FEH_AUTO_ASPECT_RATIO_FACTOR = 1.75
 HOLD_REPEAT_DELAY = 0.22
 HOLD_REPEAT_INTERVAL = 0.055
 PREVIEW_APPLY_DELAY = 0.12
+THUMB_MAX_WIDTH = 720
+THUMB_MAX_HEIGHT = 480
+THUMB_BUILD_BUDGET_IDLE = 1
+THUMB_CACHE_VERSION = "v1"
 
 
 def _rl_int(name: str) -> int:
@@ -75,6 +82,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_VISIBLE_CARDS,
         help="Maximum cards shown at once (even values are reduced by one).",
     )
+    parser.add_argument(
+        "--auto-preview",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Apply wallpaper while browsing after a short delay (disabled by default).",
+    )
     return parser.parse_args()
 
 
@@ -91,23 +104,133 @@ def list_images(directory: Path) -> list[Path]:
     )
 
 
+def get_thumbnail_cache_dir() -> Path:
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+    if xdg_cache_home:
+        base_dir = Path(xdg_cache_home).expanduser()
+    else:
+        base_dir = Path("~/.cache").expanduser()
+    return base_dir / "fay" / "thumbnails"
+
+
+def thumbnail_name_for(image_path: Path, max_width: int, max_height: int) -> str:
+    try:
+        resolved = str(image_path.resolve())
+    except OSError:
+        resolved = str(image_path)
+
+    stat_size = 0
+    stat_mtime_ns = 0
+    try:
+        stat_result = image_path.stat()
+        stat_size = int(stat_result.st_size)
+        stat_mtime_ns = int(stat_result.st_mtime_ns)
+    except OSError:
+        pass
+
+    key_source = (
+        f"{resolved}|{stat_size}|{stat_mtime_ns}|{max_width}x{max_height}|{THUMB_CACHE_VERSION}"
+    )
+    digest = hashlib.sha1(key_source.encode("utf-8")).hexdigest()
+    return f"{digest}.png"
+
+
+class ThumbnailStore:
+    def __init__(self, cache_dir: Path, max_width: int, max_height: int) -> None:
+        self.cache_dir = cache_dir
+        self.max_width = max_width
+        self.max_height = max_height
+        self.pending: deque[tuple[Path, Path]] = deque()
+        self.pending_set: set[str] = set()
+        self.failed: set[str] = set()
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def path_for(self, image_path: Path) -> Path:
+        return self.cache_dir / thumbnail_name_for(image_path, self.max_width, self.max_height)
+
+    def request(self, image_path: Path) -> Path:
+        thumb_path = self.path_for(image_path)
+        key = str(thumb_path)
+        if thumb_path.exists():
+            return thumb_path
+        if key not in self.pending_set and key not in self.failed:
+            self.pending.append((image_path, thumb_path))
+            self.pending_set.add(key)
+        return thumb_path
+
+    def _build_thumbnail(self, image_path: Path, thumb_path: Path) -> bool:
+        image = cast(Any, rl.load_image(str(image_path)))
+        try:
+            width = int(getattr(image, "width", 0))
+            height = int(getattr(image, "height", 0))
+            if width <= 0 or height <= 0:
+                return False
+
+            scale = min(self.max_width / width, self.max_height / height, 1.0)
+            if scale < 1.0:
+                new_width = max(1, int(width * scale))
+                new_height = max(1, int(height * scale))
+                rl.image_resize(cast(Any, image), new_width, new_height)
+
+            thumb_path.parent.mkdir(parents=True, exist_ok=True)
+            return bool(rl.export_image(cast(Any, image), str(thumb_path)))
+        finally:
+            rl.unload_image(cast(Any, image))
+
+    def process(self, max_jobs: int) -> None:
+        jobs_done = 0
+        while self.pending and jobs_done < max_jobs:
+            image_path, thumb_path = self.pending.popleft()
+            key = str(thumb_path)
+            self.pending_set.discard(key)
+            jobs_done += 1
+
+            if thumb_path.exists():
+                continue
+
+            ok = False
+            try:
+                ok = self._build_thumbnail(image_path, thumb_path)
+            except Exception:
+                ok = False
+
+            if not ok:
+                self.failed.add(key)
+                try:
+                    thumb_path.unlink()
+                except OSError:
+                    pass
+
+
 def resolve_feh_mode(
     image_path: Path,
     mode: str,
     screen_width: int,
     screen_height: int,
-    cache: "TextureCache",
+    image_size_cache: dict[str, tuple[int, int]],
 ) -> str:
     if mode != "auto":
         return mode
 
-    texture = cache.get(image_path)
-    if texture is None or texture.id == 0:
-        return "bg-fill"
+    cache_key = str(image_path)
+    image_size = image_size_cache.get(cache_key)
+    if image_size is None:
+        image = cast(Any, rl.load_image(str(image_path)))
+        try:
+            width = int(getattr(image, "width", 0))
+            height = int(getattr(image, "height", 0))
+        finally:
+            rl.unload_image(cast(Any, image))
 
-    image_width = int(getattr(texture, "width", 0))
-    image_height = int(getattr(texture, "height", 0))
-    if image_width <= 0 or image_height <= 0 or screen_width <= 0 or screen_height <= 0:
+        if width <= 0 or height <= 0:
+            return "bg-fill"
+        image_size = (width, height)
+        image_size_cache[cache_key] = image_size
+
+    image_width, image_height = image_size
+    if image_width <= 0 or image_height <= 0:
+        return "bg-fill"
+    if screen_width <= 0 or screen_height <= 0:
         return "bg-fill"
 
     if image_width < screen_width or image_height < screen_height:
@@ -132,9 +255,11 @@ def apply_wallpaper(
     mode: str,
     screen_width: int,
     screen_height: int,
-    cache: "TextureCache",
+    image_size_cache: dict[str, tuple[int, int]],
 ) -> tuple[bool, str]:
-    effective_mode = resolve_feh_mode(image_path, mode, screen_width, screen_height, cache)
+    effective_mode = resolve_feh_mode(
+        image_path, mode, screen_width, screen_height, image_size_cache
+    )
     try:
         proc = subprocess.run(
             ["feh", f"--{effective_mode}", str(image_path)],
@@ -202,20 +327,24 @@ def sample_curve(x: float, points: list[tuple[float, float]]) -> float:
 
 
 class TextureCache:
-    def __init__(self, max_items: int = 24) -> None:
+    def __init__(self, thumbnail_store: ThumbnailStore, max_items: int = 24) -> None:
+        self.thumbnail_store = thumbnail_store
         self.max_items = max_items
         self.cache: OrderedDict[str, Any] = OrderedDict()
         self.failed: set[str] = set()
 
     def get(self, image_path: Path) -> Any | None:
-        key = str(image_path)
+        thumb_path = self.thumbnail_store.request(image_path)
+        key = str(thumb_path)
         if key in self.cache:
             self.cache.move_to_end(key)
             return self.cache[key]
         if key in self.failed:
             return None
+        if not thumb_path.exists():
+            return None
 
-        texture = cast(Any, rl.load_texture(key))
+        texture = cast(Any, rl.load_texture(str(thumb_path)))
         if texture.id == 0:
             self.failed.add(key)
             return None
@@ -226,6 +355,9 @@ class TextureCache:
             if oldest.id != 0:
                 rl.unload_texture(cast(Any, oldest))
         return texture
+
+    def request(self, image_path: Path) -> None:
+        self.thumbnail_store.request(image_path)
 
     def clear(self) -> None:
         for texture in self.cache.values():
@@ -335,7 +467,11 @@ def main() -> int:
     monitor_height = rl.get_monitor_height(monitor)
     place_window_at_bottom(args.width, args.height, args.margin, monitor)
 
-    cache = TextureCache()
+    thumbnail_store = ThumbnailStore(
+        get_thumbnail_cache_dir(), THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT
+    )
+    cache = TextureCache(thumbnail_store)
+    image_size_cache: dict[str, tuple[int, int]] = {}
     transparent = rl.Color(0, 0, 0, 0)
     center_x = args.width * 0.5
     center_y = args.height * 0.52
@@ -351,6 +487,7 @@ def main() -> int:
     held_direction = 0
     hold_elapsed = 0.0
     repeat_elapsed = 0.0
+    auto_preview_enabled = args.auto_preview
     pending_preview_index: int | None = None
     pending_preview_wait = 0.0
 
@@ -371,7 +508,8 @@ def main() -> int:
             images = list_images(wallpaper_dir)
             selected = clamp(selected, 0, max(0, len(images) - 1))
             cache.clear()
-            if not images:
+            image_size_cache.clear()
+            if not auto_preview_enabled or not images:
                 pending_preview_index = None
                 pending_preview_wait = 0.0
             elif pending_preview_index is not None:
@@ -383,8 +521,12 @@ def main() -> int:
                 visible_count -= 1
             visible_count = max(1, visible_count)
             side_count = visible_count // 2
+            request_side = min(len(images) - 1, side_count + 2)
+            for rel in range(-request_side, request_side + 1):
+                cache.request(images[(selected + rel) % len(images)])
 
             slide_delta = 0
+            navigation_key_down = False
             if len(images) > 1:
                 right_down = (
                     rl.is_key_down(KEY_RIGHT) or rl.is_key_down(KEY_D) or rl.is_key_down(KEY_L)
@@ -398,6 +540,7 @@ def main() -> int:
                     direction_down = 1
                 elif left_down and not right_down:
                     direction_down = -1
+                navigation_key_down = direction_down != 0
 
                 if direction_down == 0:
                     held_direction = 0
@@ -422,8 +565,12 @@ def main() -> int:
                     selected = (selected + step) % len(images)
                     animation_offset += float(step)
                 moved = True
-                pending_preview_index = selected
-                pending_preview_wait = PREVIEW_APPLY_DELAY
+                if auto_preview_enabled:
+                    pending_preview_index = selected
+                    pending_preview_wait = PREVIEW_APPLY_DELAY
+                else:
+                    pending_preview_index = None
+                    pending_preview_wait = 0.0
             if rl.is_key_pressed(KEY_ENTER) or rl.is_key_pressed(KEY_KP_ENTER):
                 pending_preview_index = None
                 pending_preview_wait = 0.0
@@ -432,7 +579,7 @@ def main() -> int:
                     args.mode,
                     monitor_width,
                     monitor_height,
-                    cache,
+                    image_size_cache,
                 )
                 confirmed_selection = True
                 break
@@ -440,10 +587,10 @@ def main() -> int:
             if moved:
                 prefetch_side = min(len(images) - 1, side_count + 1)
                 for rel in range(-prefetch_side, prefetch_side + 1):
-                    cache.get(images[(selected + rel) % len(images)])
+                    cache.request(images[(selected + rel) % len(images)])
                 animation_offset = max(-3.0, min(3.0, animation_offset))
 
-            if pending_preview_index is not None:
+            if auto_preview_enabled and pending_preview_index is not None:
                 if pending_preview_index < 0 or pending_preview_index >= len(images):
                     pending_preview_index = None
                     pending_preview_wait = 0.0
@@ -455,10 +602,13 @@ def main() -> int:
                             args.mode,
                             monitor_width,
                             monitor_height,
-                            cache,
+                            image_size_cache,
                         )
                         pending_preview_index = None
                         pending_preview_wait = 0.0
+
+            if not navigation_key_down:
+                thumbnail_store.process(THUMB_BUILD_BUDGET_IDLE)
 
             animation_offset = lerp(animation_offset, 0.0, 0.24)
             if abs(animation_offset) < 0.01:

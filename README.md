@@ -31,7 +31,7 @@ fay ~/Pictures/Wallpapers
 
 - `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
 - Hold `Left/Right` (or `A/D`, `H/L`) to continuously scroll quickly
-- Moving selection automatically applies wallpaper with `feh` after a short delay while scrolling
+- Auto-preview while scrolling is off by default (for better performance)
 - `Enter`: confirm current wallpaper and close
 - `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
 - `R`: refresh directory contents
@@ -46,7 +46,13 @@ fay ~/Pictures/Wallpapers --width 1100 --height 280 --mode bg-fill
 fay ~/Pictures/Wallpapers --visible-cards 5
 ```
 
+```bash
+fay ~/Pictures/Wallpapers --auto-preview
+```
+
 `--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
+`--auto-preview` enables delayed `feh` preview while browsing (disabled by default).
+Carousel previews use cached thumbnails in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
 
 `--mode` supports: `auto` (default), `bg-fill`, `bg-center`, `bg-max`, `bg-scale`, `bg-tile`.
 In `auto` mode, `fay` uses:
