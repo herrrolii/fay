@@ -30,7 +30,8 @@ fay ~/Pictures/Wallpapers
 ## Controls
 
 - `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
-- Moving selection automatically applies wallpaper with `feh` (once per slide)
+- Hold `Left/Right` (or `A/D`, `H/L`) to continuously scroll quickly
+- Moving selection automatically applies wallpaper with `feh` after a short delay while scrolling
 - `Enter`: confirm current wallpaper and close
 - `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
 - `R`: refresh directory contents

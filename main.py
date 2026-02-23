@@ -10,6 +10,9 @@ import pyray as rl
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 FEH_MODES = ("auto", "bg-fill", "bg-center", "bg-max", "bg-scale", "bg-tile")
 FEH_AUTO_ASPECT_RATIO_FACTOR = 1.75
+HOLD_REPEAT_DELAY = 0.22
+HOLD_REPEAT_INTERVAL = 0.055
+PREVIEW_APPLY_DELAY = 0.12
 
 
 def _rl_int(name: str) -> int:
@@ -345,8 +348,14 @@ def main() -> int:
         (2.0, args.width * 0.4),
         (3.0, args.width * 0.52),
     ]
+    held_direction = 0
+    hold_elapsed = 0.0
+    repeat_elapsed = 0.0
+    pending_preview_index: int | None = None
+    pending_preview_wait = 0.0
 
     while True:
+        frame_time = rl.get_frame_time()
         if rl.window_should_close() or rl.is_key_pressed(KEY_ESCAPE) or rl.is_key_pressed(KEY_Q):
             if not confirmed_selection and startup_feh_command:
                 try:
@@ -362,6 +371,11 @@ def main() -> int:
             images = list_images(wallpaper_dir)
             selected = clamp(selected, 0, max(0, len(images) - 1))
             cache.clear()
+            if not images:
+                pending_preview_index = None
+                pending_preview_wait = 0.0
+            elif pending_preview_index is not None:
+                pending_preview_index = clamp(pending_preview_index, 0, len(images) - 1)
 
         if images:
             visible_count = min(len(images), max_visible_cards)
@@ -371,33 +385,48 @@ def main() -> int:
             side_count = visible_count // 2
 
             slide_delta = 0
-            if (
-                rl.is_key_pressed(KEY_RIGHT)
-                or rl.is_key_pressed(KEY_D)
-                or rl.is_key_pressed(KEY_L)
-            ) and len(images) > 1:
-                slide_delta += 1
-            if (
-                rl.is_key_pressed(KEY_LEFT)
-                or rl.is_key_pressed(KEY_A)
-                or rl.is_key_pressed(KEY_H)
-            ) and len(images) > 1:
-                slide_delta -= 1
+            if len(images) > 1:
+                right_down = (
+                    rl.is_key_down(KEY_RIGHT) or rl.is_key_down(KEY_D) or rl.is_key_down(KEY_L)
+                )
+                left_down = (
+                    rl.is_key_down(KEY_LEFT) or rl.is_key_down(KEY_A) or rl.is_key_down(KEY_H)
+                )
+
+                direction_down = 0
+                if right_down and not left_down:
+                    direction_down = 1
+                elif left_down and not right_down:
+                    direction_down = -1
+
+                if direction_down == 0:
+                    held_direction = 0
+                    hold_elapsed = 0.0
+                    repeat_elapsed = 0.0
+                elif direction_down != held_direction:
+                    held_direction = direction_down
+                    hold_elapsed = 0.0
+                    repeat_elapsed = 0.0
+                    slide_delta = direction_down
+                else:
+                    hold_elapsed += frame_time
+                    if hold_elapsed >= HOLD_REPEAT_DELAY:
+                        repeat_elapsed += frame_time
+                        while repeat_elapsed >= HOLD_REPEAT_INTERVAL:
+                            slide_delta += held_direction
+                            repeat_elapsed -= HOLD_REPEAT_INTERVAL
 
             if slide_delta != 0:
                 step = 1 if slide_delta > 0 else -1
-                selected = (selected + step) % len(images)
-                animation_offset += float(step)
+                for _ in range(abs(slide_delta)):
+                    selected = (selected + step) % len(images)
+                    animation_offset += float(step)
                 moved = True
-                apply_wallpaper(
-                    images[selected],
-                    args.mode,
-                    monitor_width,
-                    monitor_height,
-                    cache,
-                )
-
+                pending_preview_index = selected
+                pending_preview_wait = PREVIEW_APPLY_DELAY
             if rl.is_key_pressed(KEY_ENTER) or rl.is_key_pressed(KEY_KP_ENTER):
+                pending_preview_index = None
+                pending_preview_wait = 0.0
                 apply_wallpaper(
                     images[selected],
                     args.mode,
@@ -414,9 +443,32 @@ def main() -> int:
                     cache.get(images[(selected + rel) % len(images)])
                 animation_offset = max(-3.0, min(3.0, animation_offset))
 
+            if pending_preview_index is not None:
+                if pending_preview_index < 0 or pending_preview_index >= len(images):
+                    pending_preview_index = None
+                    pending_preview_wait = 0.0
+                else:
+                    pending_preview_wait -= frame_time
+                    if pending_preview_wait <= 0.0:
+                        apply_wallpaper(
+                            images[pending_preview_index],
+                            args.mode,
+                            monitor_width,
+                            monitor_height,
+                            cache,
+                        )
+                        pending_preview_index = None
+                        pending_preview_wait = 0.0
+
             animation_offset = lerp(animation_offset, 0.0, 0.24)
             if abs(animation_offset) < 0.01:
                 animation_offset = 0.0
+        else:
+            held_direction = 0
+            hold_elapsed = 0.0
+            repeat_elapsed = 0.0
+            pending_preview_index = None
+            pending_preview_wait = 0.0
 
         rl.begin_drawing()
         rl.clear_background(transparent)
