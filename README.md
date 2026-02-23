@@ -59,6 +59,7 @@ fay ~/Pictures/Wallpapers --auto-preview --preview-delay 0.25
 `--auto-preview` enables delayed `feh` preview while browsing (enabled by default).
 `--preview-delay` controls how long selection must stay still before preview applies (default: `0.18` seconds).
 Carousel previews use cached thumbnails in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
+Cached dimension sidecars are stored with thumbnails and reused for `--mode auto` decisions.
 
 `--mode` supports: `auto` (default), `bg-fill`, `bg-center`, `bg-max`, `bg-scale`, `bg-tile`.
 In `auto` mode, `fay` uses:
