@@ -32,7 +32,7 @@ fay ~/Pictures/Wallpapers
 - `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
 - Hold `Left/Right` (or `A/D`, `H/L`) to continuously scroll quickly
 - Auto-preview while browsing is on by default
-- With `--auto-preview` / `--no-auto-preview`, preview applies only after staying on a card for a delay (`--preview-delay`)
+- With `--auto-preview` / `--no-auto-preview`: single-tap moves preview immediately, while hold-scroll previews after a delay (`--preview-delay`)
 - `Enter`: confirm current wallpaper and close
 - `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
 - `R`: refresh directory contents

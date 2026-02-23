@@ -5,6 +5,7 @@ import hashlib
 import os
 import shlex
 import subprocess
+import threading
 from pathlib import Path
 from typing import Any, cast
 
@@ -256,30 +257,76 @@ def resolve_feh_mode(
     return "bg-fill"
 
 
-def apply_wallpaper(
+def build_wallpaper_command(
     image_path: Path,
     mode: str,
     screen_width: int,
     screen_height: int,
     image_size_cache: dict[str, tuple[int, int]],
-) -> tuple[bool, str]:
+) -> list[str]:
     effective_mode = resolve_feh_mode(
         image_path, mode, screen_width, screen_height, image_size_cache
     )
-    try:
-        proc = subprocess.run(
-            ["feh", f"--{effective_mode}", str(image_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return False, "feh not found in PATH."
+    return ["feh", f"--{effective_mode}", str(image_path)]
 
-    if proc.returncode != 0:
-        message = proc.stderr.strip() or proc.stdout.strip() or "feh failed."
-        return False, message
-    return True, f"Applied (--{effective_mode}): {image_path.name}"
+
+class AsyncFehRunner:
+    def __init__(self) -> None:
+        self._condition = threading.Condition()
+        self._pending_command: list[str] | None = None
+        self._running = False
+        self._closed = False
+        self._thread = threading.Thread(
+            target=self._run, name="fay-feh-runner", daemon=False
+        )
+        self._thread.start()
+
+    def submit(self, command: list[str]) -> None:
+        with self._condition:
+            if self._closed:
+                return
+            self._pending_command = list(command)
+            self._condition.notify_all()
+
+    def _run(self) -> None:
+        while True:
+            with self._condition:
+                while self._pending_command is None and not self._closed:
+                    self._condition.wait()
+                if self._closed and self._pending_command is None:
+                    return
+                command = self._pending_command
+                if command is None:
+                    continue
+                self._pending_command = None
+                self._running = True
+
+            try:
+                subprocess.run(
+                    command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            except OSError:
+                pass
+            finally:
+                with self._condition:
+                    self._running = False
+                    self._condition.notify_all()
+
+    def flush(self) -> None:
+        with self._condition:
+            while self._pending_command is not None or self._running:
+                self._condition.wait()
+
+    def shutdown(self, flush_pending: bool = True) -> None:
+        if flush_pending:
+            self.flush()
+        with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+        self._thread.join()
 
 
 def get_startup_feh_command() -> list[str] | None:
@@ -449,6 +496,7 @@ def main() -> int:
     wallpaper_dir = Path(args.directory).expanduser() if args.directory else Path.cwd()
     max_visible_cards = max(1, args.visible_cards)
     startup_feh_command = get_startup_feh_command()
+    feh_runner = AsyncFehRunner()
 
     images = list_images(wallpaper_dir)
     selected = 0
@@ -502,10 +550,7 @@ def main() -> int:
         frame_time = rl.get_frame_time()
         if rl.window_should_close() or rl.is_key_pressed(KEY_ESCAPE) or rl.is_key_pressed(KEY_Q):
             if not confirmed_selection and startup_feh_command:
-                try:
-                    subprocess.run(startup_feh_command, check=False)
-                except OSError:
-                    pass
+                feh_runner.submit(startup_feh_command)
             break
 
         moved = False
@@ -532,6 +577,8 @@ def main() -> int:
 
             slide_delta = 0
             navigation_key_down = False
+            moved_from_initial_press = False
+            moved_from_repeat = False
             if len(images) > 1:
                 right_down = (
                     rl.is_key_down(KEY_RIGHT) or rl.is_key_down(KEY_D) or rl.is_key_down(KEY_L)
@@ -556,6 +603,7 @@ def main() -> int:
                     hold_elapsed = 0.0
                     repeat_elapsed = 0.0
                     slide_delta = direction_down
+                    moved_from_initial_press = True
                 else:
                     hold_elapsed += frame_time
                     if hold_elapsed >= HOLD_REPEAT_DELAY:
@@ -563,6 +611,8 @@ def main() -> int:
                         while repeat_elapsed >= HOLD_REPEAT_INTERVAL:
                             slide_delta += held_direction
                             repeat_elapsed -= HOLD_REPEAT_INTERVAL
+                        if slide_delta != 0:
+                            moved_from_repeat = True
 
             if slide_delta != 0:
                 step = 1 if slide_delta > 0 else -1
@@ -580,12 +630,14 @@ def main() -> int:
                 selection_dwell_time += frame_time
 
             if rl.is_key_pressed(KEY_ENTER) or rl.is_key_pressed(KEY_KP_ENTER):
-                apply_wallpaper(
-                    images[selected],
-                    args.mode,
-                    monitor_width,
-                    monitor_height,
-                    image_size_cache,
+                feh_runner.submit(
+                    build_wallpaper_command(
+                        images[selected],
+                        args.mode,
+                        monitor_width,
+                        monitor_height,
+                        image_size_cache,
+                    )
                 )
                 confirmed_selection = True
                 break
@@ -598,18 +650,38 @@ def main() -> int:
 
             if (
                 auto_preview_enabled
+                and moved
+                and moved_from_initial_press
+                and not moved_from_repeat
+                and abs(slide_delta) == 1
+            ):
+                feh_runner.submit(
+                    build_wallpaper_command(
+                        images[selected],
+                        args.mode,
+                        monitor_width,
+                        monitor_height,
+                        image_size_cache,
+                    )
+                )
+                last_auto_preview_index = selected
+
+            if (
+                auto_preview_enabled
                 and not navigation_key_down
                 and selection_dwell_time >= preview_delay
                 and last_auto_preview_index != selected
             ):
                 selected_texture = cache.get(images[selected])
                 if selected_texture is not None:
-                    apply_wallpaper(
-                        images[selected],
-                        args.mode,
-                        monitor_width,
-                        monitor_height,
-                        image_size_cache,
+                    feh_runner.submit(
+                        build_wallpaper_command(
+                            images[selected],
+                            args.mode,
+                            monitor_width,
+                            monitor_height,
+                            image_size_cache,
+                        )
                     )
                     last_auto_preview_index = selected
 
@@ -665,6 +737,7 @@ def main() -> int:
                 draw_preview_card(cache, images[idx], card, tint, depth < 0.32)
         rl.end_drawing()
 
+    feh_runner.shutdown(flush_pending=True)
     cache.clear()
     rl.close_window()
     return 0
