@@ -1,6 +1,7 @@
 import argparse
 from collections import OrderedDict
 from collections import deque
+import fcntl
 import hashlib
 import os
 import shlex
@@ -11,6 +12,7 @@ from typing import Any, cast
 
 import pyray as rl
 
+WINDOW_TITLE = "fay wallpaper picker"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 FEH_MODES = ("auto", "bg-fill", "bg-center", "bg-max", "bg-scale", "bg-tile")
 FEH_AUTO_ASPECT_RATIO_FACTOR = 1.75
@@ -118,6 +120,65 @@ def get_thumbnail_cache_dir() -> Path:
     else:
         base_dir = Path("~/.cache").expanduser()
     return base_dir / "fay" / "thumbnails"
+
+
+def get_runtime_dir() -> Path:
+    xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg_runtime_dir:
+        path = Path(xdg_runtime_dir)
+        if path.exists() and path.is_dir():
+            return path
+    return Path("/tmp")
+
+
+def get_lock_path() -> Path:
+    lock_name = f"fay-{os.getuid()}.lock"
+    return get_runtime_dir() / lock_name
+
+
+def acquire_single_instance_lock(lock_path: Path) -> Any | None:
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_file = open(lock_path, "w", encoding="utf-8")
+    except OSError:
+        return None
+
+    try:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock_file.close()
+        return None
+
+    try:
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.write(f"{os.getpid()}\n")
+        lock_file.flush()
+    except OSError:
+        pass
+
+    return lock_file
+
+
+def focus_existing_window(window_title: str) -> bool:
+    commands = [
+        ["xdotool", "search", "--name", window_title, "windowactivate"],
+        ["wmctrl", "-a", window_title],
+    ]
+
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except OSError:
+            continue
+        if result.returncode == 0:
+            return True
+    return False
 
 
 def thumbnail_name_for(image_path: Path, max_width: int, max_height: int) -> str:
@@ -596,6 +657,11 @@ def draw_preview_card(
 
 def main() -> int:
     args = parse_args()
+    lock_handle = acquire_single_instance_lock(get_lock_path())
+    if lock_handle is None:
+        focus_existing_window(WINDOW_TITLE)
+        return 0
+
     wallpaper_dir = Path(args.directory).expanduser() if args.directory else Path.cwd()
     max_visible_cards = max(1, args.visible_cards)
     startup_feh_command = get_startup_feh_command()
@@ -615,7 +681,7 @@ def main() -> int:
                 break
 
     rl.set_config_flags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST | FLAG_WINDOW_TRANSPARENT)
-    rl.init_window(args.width, args.height, "fay wallpaper picker")
+    rl.init_window(args.width, args.height, WINDOW_TITLE)
     rl.set_target_fps(60)
     rl.set_exit_key(KEY_NULL)
 
@@ -852,6 +918,10 @@ def main() -> int:
     feh_runner.shutdown(flush_pending=True)
     cache.clear()
     rl.close_window()
+    try:
+        lock_handle.close()
+    except OSError:
+        pass
     return 0
 
 
