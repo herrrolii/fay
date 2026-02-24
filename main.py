@@ -355,6 +355,7 @@ def build_wallpaper_command(
     image_size_cache: dict[str, tuple[int, int]],
     thumbnail_store: ThumbnailStore,
     allow_probe: bool = True,
+    persist_selection: bool = True,
 ) -> list[str]:
     effective_mode = resolve_feh_mode(
         image_path,
@@ -365,7 +366,11 @@ def build_wallpaper_command(
         thumbnail_store,
         allow_probe,
     )
-    return ["feh", f"--{effective_mode}", str(image_path)]
+    command = ["feh"]
+    if not persist_selection:
+        command.append("--no-fehbg")
+    command.extend([f"--{effective_mode}", str(image_path)])
+    return command
 
 
 class AsyncFehRunner:
@@ -737,6 +742,7 @@ def main() -> int:
                         image_size_cache,
                         thumbnail_store,
                         True,
+                        True,
                     )
                 )
                 confirmed_selection = True
@@ -764,6 +770,7 @@ def main() -> int:
                         image_size_cache,
                         thumbnail_store,
                         False,
+                        False,
                     )
                 )
                 last_auto_preview_index = selected
@@ -784,6 +791,7 @@ def main() -> int:
                             monitor_height,
                             image_size_cache,
                             thumbnail_store,
+                            False,
                             False,
                         )
                     )
