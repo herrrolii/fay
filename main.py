@@ -16,6 +16,9 @@ WINDOW_TITLE = "fay wallpaper picker"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 FEH_MODES = ("auto", "bg-fill", "bg-center", "bg-max", "bg-scale", "bg-tile")
 FEH_AUTO_ASPECT_RATIO_FACTOR = 1.75
+FEH_AUTO_SMALL_RATIO_FACTOR = 0.78
+FEH_AUTO_SQUAREISH_MIN_RATIO = 0.8
+FEH_AUTO_SQUAREISH_MAX_RATIO = 1.25
 HOLD_REPEAT_DELAY = 0.22
 HOLD_REPEAT_INTERVAL = 0.055
 DEFAULT_PREVIEW_DELAY = 0.18
@@ -391,18 +394,32 @@ def resolve_feh_mode(
     if screen_width <= 0 or screen_height <= 0:
         return "bg-fill"
 
-    if image_width < screen_width or image_height < screen_height:
-        return "bg-center"
+    width_ratio = image_width / screen_width
+    height_ratio = image_height / screen_height
 
     screen_landscape = screen_width >= screen_height
     image_landscape = image_width >= image_height
-    if screen_landscape != image_landscape:
-        return "bg-center"
+    orientation_mismatch = screen_landscape != image_landscape
 
     screen_ratio = screen_width / screen_height
     image_ratio = image_width / image_height
     ratio_factor = max(screen_ratio / image_ratio, image_ratio / screen_ratio)
-    if ratio_factor >= FEH_AUTO_ASPECT_RATIO_FACTOR:
+    strong_aspect_mismatch = ratio_factor >= FEH_AUTO_ASPECT_RATIO_FACTOR
+    squareish = FEH_AUTO_SQUAREISH_MIN_RATIO <= image_ratio <= FEH_AUTO_SQUAREISH_MAX_RATIO
+    larger_than_screen = width_ratio >= 1.0 and height_ratio >= 1.0
+
+    # Very small images (in both dimensions) should not be stretched.
+    if (
+        width_ratio <= FEH_AUTO_SMALL_RATIO_FACTOR
+        and height_ratio <= FEH_AUTO_SMALL_RATIO_FACTOR
+    ):
+        return "bg-center"
+
+    # Large square-ish images on wide/tall screens usually look best fit-to-screen.
+    if squareish and larger_than_screen:
+        return "bg-max"
+
+    if orientation_mismatch or strong_aspect_mismatch:
         return "bg-center"
 
     return "bg-fill"
