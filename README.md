@@ -1,13 +1,8 @@
 # fay
 
-Small raylib overlay that shows a bottom carousel of wallpaper previews and applies the selected file with `feh`.
+Small raylib overlay that shows a bottom carousel of wallpaper previews and applies the selected file using an environment-appropriate backend.
 
 ## Install
-
-System dependency:
-- `feh` must be installed (for example `sudo apt install feh` or `sudo pacman -S feh`).
-
-One-command app install:
 
 ```bash
 pipx install "git+https://github.com/herrrolii/fay.git"
@@ -19,28 +14,51 @@ Then run:
 fay
 ```
 
-## Run
+`fay` with no arguments defaults to the current working directory.
+
+## Supported Backends (auto-detected)
+
+- `feh` (generic X11 sessions)
+- `gsettings` (GNOME)
+- `swaymsg` (`swaybg`-style apply in Sway)
+- `swww` / `awww` (Hyprland preferred)
+- `hyprpaper` (Hyprland fallback)
+
+Use `fay --diagnose` to see what was detected on your machine.
+
+## Commands
+
+Open picker:
 
 ```bash
 fay ~/Pictures/Wallpapers
 ```
 
-`fay` with no arguments defaults to the current working directory.
+Reapply last confirmed wallpaper (for login/startup hooks):
+
+```bash
+fay restore
+```
+
+Diagnostics:
+
+```bash
+fay diagnose
+```
 
 ## Controls
 
 - `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
 - Hold `Left/Right` (or `A/D`, `H/L`) to continuously scroll quickly
 - Auto-preview while browsing is on by default
-- With `--auto-preview` / `--no-auto-preview`: single-tap moves preview immediately, while hold-scroll previews after a delay (`--preview-delay`)
 - `Enter`: confirm current wallpaper and close
 - `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
 - `R`: refresh directory contents
 
-## Useful flags
+## Useful Flags
 
 ```bash
-fay ~/Pictures/Wallpapers --width 1100 --height 280 --mode bg-fill
+fay ~/Pictures/Wallpapers --width 1100 --height 280
 ```
 
 ```bash
@@ -48,21 +66,34 @@ fay ~/Pictures/Wallpapers --visible-cards 5
 ```
 
 ```bash
-fay ~/Pictures/Wallpapers --auto-preview
+fay ~/Pictures/Wallpapers --backend auto --mode auto
 ```
 
 ```bash
 fay ~/Pictures/Wallpapers --auto-preview --preview-delay 0.25
 ```
 
-`--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
-`--auto-preview` enables delayed `feh` preview while browsing (enabled by default).
-`--preview-delay` controls how long selection must stay still before preview applies (default: `0.18` seconds).
-Carousel previews use cached thumbnails in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
-Cached dimension sidecars are stored with thumbnails and reused for `--mode auto` decisions.
+```bash
+fay ~/Pictures/Wallpapers --transparent
+```
 
-`--mode` supports: `auto` (default), `bg-fill`, `bg-center`, `bg-max`, `bg-scale`, `bg-tile`.
-In `auto` mode, `fay` uses:
-- `bg-center` for images smaller than the monitor, or with opposite orientation (portrait vs landscape).
-- `bg-center` for extreme aspect-ratio mismatch (ratio factor >= `1.75`).
-- `bg-fill` otherwise.
+```bash
+fay ~/Pictures/Wallpapers --no-transparent
+```
+
+`--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
+
+`--mode` is backend-agnostic and supports:
+- `auto` (default)
+- `fill`
+- `fit`
+- `center`
+- `tile`
+
+Legacy aliases are still accepted: `bg-fill`, `bg-center`, `bg-max`, `bg-scale`, `bg-tile`.
+
+`--backend` supports: `auto` (default), `feh`, `gnome`, `swaybg`, `swww`, `hyprpaper`.
+
+Auto-preview uses async backend calls and thumbnail caching. Thumbnails are stored in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
+
+Confirmed picks are stored in `~/.local/state/fay/last_selection.json` (or `$XDG_STATE_HOME/fay/last_selection.json`) and can be replayed with `fay restore`.
