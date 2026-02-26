@@ -90,8 +90,6 @@ fay ~/Pictures/Wallpapers --no-transparent
 - `center`
 - `tile`
 
-Legacy aliases are still accepted: `bg-fill`, `bg-center`, `bg-max`, `bg-scale`, `bg-tile`.
-
 `--backend` supports: `auto` (default), `feh`, `gnome`, `swaybg`, `swww`, `hyprpaper`.
 
 Auto-preview uses async backend calls and thumbnail caching. Thumbnails are stored in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).

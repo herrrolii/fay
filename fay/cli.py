@@ -41,7 +41,7 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
         "--mode",
         default="auto",
         choices=list(MODE_CHOICES),
-        help="Wallpaper mode: auto/fill/fit/center/tile (legacy bg-* aliases still accepted).",
+        help="Wallpaper mode: auto/fill/fit/center/tile.",
     )
     parser.add_argument("--width", type=int, default=1000, help="Overlay width in pixels.")
     parser.add_argument("--height", type=int, default=260, help="Overlay height in pixels.")

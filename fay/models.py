@@ -5,22 +5,7 @@ from pathlib import Path
 from typing import Any
 
 
-MODE_ALIASES: dict[str, str] = {
-    "auto": "auto",
-    "fill": "fill",
-    "fit": "fit",
-    "center": "center",
-    "tile": "tile",
-    # Backward compatibility with previous CLI.
-    "bg-fill": "fill",
-    "bg-max": "fit",
-    "bg-center": "center",
-    "bg-tile": "tile",
-    "bg-scale": "fit",
-}
-
-MODE_CHOICES = tuple(sorted(MODE_ALIASES.keys()))
-NORMALIZED_MODE_CHOICES = ("auto", "fill", "fit", "center", "tile")
+MODE_CHOICES = ("auto", "fill", "fit", "center", "tile")
 
 
 @dataclass(frozen=True)
@@ -59,10 +44,3 @@ class WallpaperState:
 class BackendResult:
     ok: bool
     error: str | None = None
-
-
-def normalize_mode(mode: str) -> str:
-    normalized = MODE_ALIASES.get(mode)
-    if normalized is None:
-        return "auto"
-    return normalized

@@ -22,7 +22,7 @@ from fay.media import (
     get_thumbnail_cache_dir,
     list_images,
 )
-from fay.models import BackendResult, WallpaperState, normalize_mode
+from fay.models import BackendResult, WallpaperState
 from fay.ui import (
     FLAG_WINDOW_TOPMOST,
     FLAG_WINDOW_TRANSPARENT,
@@ -255,7 +255,7 @@ def run_picker(args: Any) -> int:
     wallpaper_dir = Path(args.directory).expanduser() if args.directory else Path.cwd()
     images = list_images(wallpaper_dir)
     max_visible_cards = max(1, args.visible_cards)
-    normalized_mode = normalize_mode(args.mode)
+    normalized_mode = args.mode
 
     startup_state = backend.capture_current()
     selected = 0
