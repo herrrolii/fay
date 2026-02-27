@@ -10,12 +10,6 @@ from fay.models import EnvironmentInfo
 KNOWN_COMMANDS = (
     "feh",
     "gsettings",
-    "swaybg",
-    "swaymsg",
-    "swww",
-    "awww",
-    "swww-daemon",
-    "hyprctl",
 )
 
 
@@ -33,19 +27,12 @@ def detect_environment(extra_commands: Iterable[str] = ()) -> EnvironmentInfo:
     wayland_display = os.environ.get("WAYLAND_DISPLAY", "").strip()
     x_display = os.environ.get("DISPLAY", "").strip()
 
-    sway = bool(os.environ.get("SWAYSOCK")) or "sway" in current_desktop.lower()
-    hyprland = bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")) or (
-        "hyprland" in current_desktop.lower()
-    )
-
     return EnvironmentInfo(
         session_type=session_type,
         desktop_session=desktop_session,
         current_desktop=current_desktop,
         wayland_display=wayland_display,
         x_display=x_display,
-        sway=sway,
-        hyprland=hyprland,
         commands=available_commands,
     )
 

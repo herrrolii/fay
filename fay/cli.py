@@ -7,7 +7,7 @@ from typing import Sequence
 from fay.models import MODE_CHOICES
 
 
-BACKEND_CHOICES = ("auto", "feh", "gnome", "swaybg", "swww", "hyprpaper")
+BACKEND_CHOICES = ("auto", "feh", "gnome")
 DEFAULT_VISIBLE_CARDS = 5
 DEFAULT_PREVIEW_DELAY = 0.18
 

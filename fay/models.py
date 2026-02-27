@@ -15,8 +15,6 @@ class EnvironmentInfo:
     current_desktop: str
     wayland_display: str
     x_display: str
-    sway: bool
-    hyprland: bool
     commands: set[str] = field(default_factory=set)
 
     @property

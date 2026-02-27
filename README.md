@@ -1,6 +1,6 @@
 # fay
 
-Small raylib overlay that shows a bottom carousel of wallpaper previews and applies the selected file using an environment-appropriate backend.
+Small raylib overlay for X11 and GNOME that shows a bottom carousel of wallpaper previews and applies the selected file.
 
 ## Install
 
@@ -11,7 +11,7 @@ pipx install "git+https://github.com/herrrolii/fay.git"
 Then run:
 
 ```bash
-fay
+fay ~/Pictures
 ```
 
 `fay` with no arguments defaults to the current working directory.
@@ -20,9 +20,6 @@ fay
 
 - `feh` (generic X11 sessions)
 - `gsettings` (GNOME)
-- `swaymsg` (`swaybg`-style apply in Sway)
-- `swww` / `awww` (Hyprland preferred)
-- `hyprpaper` (Hyprland fallback)
 
 Use `fay --diagnose` to see what was detected on your machine.
 
@@ -90,7 +87,7 @@ fay ~/Pictures/Wallpapers --no-transparent
 - `center`
 - `tile`
 
-`--backend` supports: `auto` (default), `feh`, `gnome`, `swaybg`, `swww`, `hyprpaper`.
+`--backend` supports: `auto` (default), `feh`, `gnome`.
 
 Auto-preview uses async backend calls and thumbnail caching. Thumbnails are stored in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
 

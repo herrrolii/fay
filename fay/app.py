@@ -592,8 +592,6 @@ def build_diagnostics(registry: BackendRegistry, env: Any) -> str:
     lines.append(f"  desktop_session: {env.desktop_session or 'unknown'}")
     lines.append(f"  wayland_display: {env.wayland_display or '-'}")
     lines.append(f"  x_display: {env.x_display or '-'}")
-    lines.append(f"  sway: {env.sway}")
-    lines.append(f"  hyprland: {env.hyprland}")
     lines.append(
         "  commands: "
         + (", ".join(sorted(env.commands)) if env.commands else "(none detected)")
