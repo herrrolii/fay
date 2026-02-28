@@ -78,7 +78,7 @@ fay ~/Pictures/Wallpapers --transparent
 fay ~/Pictures/Wallpapers --no-transparent
 ```
 
-`--visible-cards` is the max shown at once. If the computed count is even, it is reduced by one so both sides stay symmetric.
+`--visible-cards` is capped at `15` (default `5`). If the computed count is even, it is reduced by one so both sides stay symmetric.
 
 `--mode` is backend-agnostic and supports:
 - `auto` (default)
@@ -90,5 +90,6 @@ fay ~/Pictures/Wallpapers --no-transparent
 `--backend` supports: `auto` (default), `feh`, `gnome`.
 
 Auto-preview uses async backend calls and thumbnail caching. Thumbnails are stored in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
+First startup in a directory can be slower while `fay` builds its thumbnail/dimension cache.
 
 Confirmed picks are stored in `~/.local/state/fay/last_selection.json` (or `$XDG_STATE_HOME/fay/last_selection.json`) and can be replayed with `fay restore`.

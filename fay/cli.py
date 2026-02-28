@@ -9,6 +9,7 @@ from fay.models import MODE_CHOICES
 
 BACKEND_CHOICES = ("auto", "feh", "gnome")
 DEFAULT_VISIBLE_CARDS = 5
+MAX_VISIBLE_CARDS = 15
 DEFAULT_PREVIEW_DELAY = 0.18
 
 
@@ -61,7 +62,10 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
         "--visible-cards",
         type=int,
         default=DEFAULT_VISIBLE_CARDS,
-        help="Maximum cards shown at once (even values are reduced by one).",
+        help=(
+            f"Maximum cards shown at once (1-{MAX_VISIBLE_CARDS}; "
+            "larger values are capped, even values are reduced by one)."
+        ),
     )
     parser.add_argument(
         "--auto-preview",

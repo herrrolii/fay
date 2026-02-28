@@ -48,6 +48,7 @@ from fay.ui import (
 
 WINDOW_TITLE = "fay wallpaper picker"
 DEFAULT_VISIBLE_CARDS = 5
+MAX_VISIBLE_CARDS = 15
 HOLD_REPEAT_DELAY = 0.22
 HOLD_REPEAT_INTERVAL = 0.055
 DEFAULT_PREVIEW_DELAY = 0.18
@@ -254,7 +255,7 @@ def run_picker(args: Any) -> int:
 
     wallpaper_dir = Path(args.directory).expanduser() if args.directory else Path.cwd()
     images = list_images(wallpaper_dir)
-    max_visible_cards = max(1, args.visible_cards)
+    max_visible_cards = min(MAX_VISIBLE_CARDS, max(1, args.visible_cards))
     normalized_mode = args.mode
 
     startup_state = backend.capture_current()
@@ -304,13 +305,35 @@ def run_picker(args: Any) -> int:
     center_x = args.width * 0.5
     center_y = args.height * 0.52
     animation_offset = 0.0
-    depth_points = [(0.0, 1.0), (1.0, 0.76), (2.0, 0.56), (3.0, 0.42)]
-    alpha_points = [(0.0, 255.0), (1.0, 205.0), (2.0, 155.0), (3.0, 100.0)]
+    depth_points = [
+        (0.0, 1.0),
+        (1.0, 0.78),
+        (2.0, 0.62),
+        (3.0, 0.5),
+        (4.0, 0.42),
+        (5.0, 0.35),
+        (6.0, 0.3),
+        (7.0, 0.26),
+    ]
+    alpha_points = [
+        (0.0, 255.0),
+        (1.0, 215.0),
+        (2.0, 185.0),
+        (3.0, 155.0),
+        (4.0, 130.0),
+        (5.0, 105.0),
+        (6.0, 85.0),
+        (7.0, 70.0),
+    ]
     gap_points = [
         (0.0, 0.0),
-        (1.0, args.width * 0.24),
-        (2.0, args.width * 0.4),
-        (3.0, args.width * 0.52),
+        (1.0, args.width * 0.18),
+        (2.0, args.width * 0.28),
+        (3.0, args.width * 0.35),
+        (4.0, args.width * 0.4),
+        (5.0, args.width * 0.43),
+        (6.0, args.width * 0.45),
+        (7.0, args.width * 0.46),
     ]
     held_direction = 0
     hold_elapsed = 0.0
