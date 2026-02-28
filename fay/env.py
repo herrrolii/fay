@@ -24,14 +24,12 @@ def detect_environment(extra_commands: Iterable[str] = ()) -> EnvironmentInfo:
     session_type = os.environ.get("XDG_SESSION_TYPE", "").strip().lower()
     desktop_session = os.environ.get("DESKTOP_SESSION", "").strip()
     current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").strip()
-    wayland_display = os.environ.get("WAYLAND_DISPLAY", "").strip()
     x_display = os.environ.get("DISPLAY", "").strip()
 
     return EnvironmentInfo(
         session_type=session_type,
         desktop_session=desktop_session,
         current_desktop=current_desktop,
-        wayland_display=wayland_display,
         x_display=x_display,
         commands=available_commands,
     )

@@ -13,13 +13,8 @@ class EnvironmentInfo:
     session_type: str
     desktop_session: str
     current_desktop: str
-    wayland_display: str
     x_display: str
     commands: set[str] = field(default_factory=set)
-
-    @property
-    def is_wayland(self) -> bool:
-        return self.session_type == "wayland" or bool(self.wayland_display)
 
     @property
     def is_x11(self) -> bool:

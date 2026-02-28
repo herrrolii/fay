@@ -228,14 +228,11 @@ def monitor_size(monitor: int | None) -> tuple[int, int, int]:
 
 def should_use_transparent_window(
     explicit: bool | None,
-    env_session_type: str,
-    wayland_display: str,
+    use_x11_default: bool,
 ) -> bool:
     if explicit is not None:
         return explicit
-    if env_session_type == "wayland" or wayland_display:
-        return False
-    return True
+    return use_x11_default
 
 
 def run_picker(args: Any) -> int:
@@ -272,8 +269,7 @@ def run_picker(args: Any) -> int:
 
     use_transparent = should_use_transparent_window(
         args.transparent,
-        env.session_type,
-        env.wayland_display,
+        env.is_x11,
     )
 
     flags = FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_TOPMOST
@@ -617,10 +613,8 @@ def run_diagnose(args: Any) -> int:
 def build_diagnostics(registry: BackendRegistry, env: Any) -> str:
     lines: list[str] = []
     lines.append("Environment:")
-    lines.append(f"  session_type: {env.session_type or 'unknown'}")
     lines.append(f"  current_desktop: {env.current_desktop or 'unknown'}")
     lines.append(f"  desktop_session: {env.desktop_session or 'unknown'}")
-    lines.append(f"  wayland_display: {env.wayland_display or '-'}")
     lines.append(f"  x_display: {env.x_display or '-'}")
     lines.append(
         "  commands: "

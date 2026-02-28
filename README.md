@@ -43,11 +43,17 @@ Diagnostics:
 fay diagnose
 ```
 
+List all available arguments:
+
+```bash
+fay --help
+```
+
 ## Controls
 
 - `Left/Right` (or `A/D`, `H/L`): move selection in the carousel (wraps at ends)
 - Hold `Left/Right` (or `A/D`, `H/L`) to continuously scroll quickly
-- Auto-preview while browsing is on by default
+- Auto-preview while browsing is on by default (disable with `--no-preview`)
 - `Enter`: confirm current wallpaper and close
 - `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
 - `R`: refresh directory contents
@@ -68,6 +74,10 @@ fay ~/Pictures/Wallpapers --backend auto --mode auto
 
 ```bash
 fay ~/Pictures/Wallpapers --auto-preview --preview-delay 0.25
+```
+
+```bash
+fay ~/Pictures/Wallpapers --no-preview
 ```
 
 ```bash

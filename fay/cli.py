@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from typing import Sequence
 
@@ -20,6 +21,41 @@ POSITION_CHOICES = (
 DEFAULT_VISIBLE_CARDS = 5
 MAX_VISIBLE_CARDS = 15
 DEFAULT_PREVIEW_DELAY = 0.18
+HELP_MAX_POSITION = 36
+HELP_WIDTH = 110
+
+
+class FayHelpFormatter(argparse.HelpFormatter):
+    def __init__(self, prog: str) -> None:
+        term_width = shutil.get_terminal_size(fallback=(HELP_WIDTH, 24)).columns
+        width = max(64, min(HELP_WIDTH, term_width - 2))
+        max_help_position = max(22, min(HELP_MAX_POSITION, width // 3))
+        super().__init__(prog, max_help_position=max_help_position, width=width)
+
+    def _format_action(self, action: argparse.Action) -> str:
+        if action.help is argparse.SUPPRESS:
+            return ""
+
+        lines: list[str] = []
+        action_header = self._format_action_invocation(action)
+        action_indent = " " * self._current_indent
+        lines.append(f"{action_indent}{action_header}\n")
+
+        if action.help:
+            help_text = self._expand_help(action)
+            help_indent_size = self._current_indent + 2
+            help_width = max(20, self._width - help_indent_size)
+            help_lines = self._split_lines(help_text, help_width)
+            help_indent = " " * help_indent_size
+            for line in help_lines:
+                lines.append(f"{help_indent}{line}\n")
+
+        lines.append("\n")
+
+        for subaction in self._iter_indented_subactions(action):
+            lines.append(self._format_action(subaction))
+
+        return "".join(lines)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -33,6 +69,7 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="fay",
         description="Wallpaper overlay picker using raylib.",
+        formatter_class=FayHelpFormatter,
     )
     parser.set_defaults(command="pick")
     parser.add_argument(
@@ -45,12 +82,14 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
         "--backend",
         default="auto",
         choices=BACKEND_CHOICES,
+        metavar="BACKEND",
         help="Wallpaper backend to use (auto by default).",
     )
     parser.add_argument(
         "--mode",
         default="auto",
         choices=list(MODE_CHOICES),
+        metavar="MODE",
         help="Wallpaper mode: auto/fill/fit/center/tile.",
     )
     parser.add_argument("--width", type=int, default=1000, help="Overlay width in pixels.")
@@ -59,6 +98,7 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
         "--position",
         default="bottom",
         choices=POSITION_CHOICES,
+        metavar="POSITION",
         help="Preset window position (default: bottom).",
     )
     parser.add_argument(
@@ -88,11 +128,19 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
             "larger values are capped, even values are reduced by one)."
         ),
     )
-    parser.add_argument(
+    preview_group = parser.add_mutually_exclusive_group()
+    preview_group.add_argument(
         "--auto-preview",
-        action=argparse.BooleanOptionalAction,
+        dest="auto_preview",
+        action="store_true",
         default=True,
         help="Apply wallpaper while browsing after a short delay (enabled by default).",
+    )
+    preview_group.add_argument(
+        "--no-preview",
+        dest="auto_preview",
+        action="store_false",
+        help="Disable wallpaper auto-preview while browsing.",
     )
     parser.add_argument(
         "--preview-delay",
@@ -104,7 +152,7 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
         "--transparent",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Force transparent or opaque window background (default: transparent on X11, opaque on Wayland).",
+        help="Force transparent or opaque window background (default: transparent when supported).",
     )
     parser.add_argument(
         "--diagnose",
@@ -118,7 +166,7 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
 
 
 def _parse_subcommand_args(args: Sequence[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="fay")
+    parser = argparse.ArgumentParser(prog="fay", formatter_class=FayHelpFormatter)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     restore = subparsers.add_parser("restore", help="Reapply last confirmed wallpaper.")
@@ -126,6 +174,7 @@ def _parse_subcommand_args(args: Sequence[str]) -> argparse.Namespace:
         "--backend",
         default="auto",
         choices=BACKEND_CHOICES,
+        metavar="BACKEND",
         help="Backend override for restore.",
     )
 
