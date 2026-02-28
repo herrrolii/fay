@@ -51,16 +51,61 @@ def sample_curve(x: float, points: list[tuple[float, float]]) -> float:
     return points[-1][1]
 
 
-def place_window_at_bottom(width: int, height: int, margin: int, monitor: int) -> None:
+def place_window(
+    width: int,
+    height: int,
+    monitor: int,
+    position: str,
+    center_x: int | None,
+    center_y: int | None,
+) -> None:
     monitor_pos = rl.get_monitor_position(monitor)
     monitor_x = int(monitor_pos.x)
     monitor_y = int(monitor_pos.y)
     monitor_width = rl.get_monitor_width(monitor)
     monitor_height = rl.get_monitor_height(monitor)
 
-    x = monitor_x + (monitor_width - width) // 2
-    y = monitor_y + monitor_height - height - margin
-    rl.set_window_position(max(monitor_x, x), max(monitor_y, y))
+    edge_x = max(32, int(monitor_width * 0.03))
+    edge_y = max(48, int(monitor_height * 0.06))
+
+    min_x = monitor_x + edge_x
+    max_x = monitor_x + monitor_width - width - edge_x
+    min_y = monitor_y + edge_y
+    max_y = monitor_y + monitor_height - height - edge_y
+
+    if min_x > max_x:
+        min_x = monitor_x
+        max_x = monitor_x + monitor_width - width
+    if min_y > max_y:
+        min_y = monitor_y
+        max_y = monitor_y + monitor_height - height
+
+    if center_x is not None and center_y is not None:
+        x = monitor_x + center_x - width // 2
+        y = monitor_y + center_y - height // 2
+    else:
+        x = monitor_x + (monitor_width - width) // 2
+        y = monitor_y + (monitor_height - height) // 2
+        if position == "bottom":
+            y = max_y
+        elif position == "top":
+            y = min_y
+        elif position == "top-left":
+            x = min_x
+            y = min_y
+        elif position == "top-right":
+            x = max_x
+            y = min_y
+        elif position == "bottom-left":
+            x = min_x
+            y = max_y
+        elif position == "bottom-right":
+            x = max_x
+            y = max_y
+
+    x = clamp(x, min_x, max_x)
+    y = clamp(y, min_y, max_y)
+    rl.set_window_position(x, y)
 
 
 def fit_texture_rect(texture: Any, box: rl.Rectangle) -> rl.Rectangle:

@@ -1,6 +1,6 @@
 # fay
 
-Small raylib overlay for X11 and GNOME that shows a bottom carousel of wallpaper previews and applies the selected file.
+Small raylib overlay for X11 and GNOME that shows a carousel of wallpaper previews and applies the selected file.
 
 ## Install
 
@@ -78,7 +78,17 @@ fay ~/Pictures/Wallpapers --transparent
 fay ~/Pictures/Wallpapers --no-transparent
 ```
 
+```bash
+fay ~/Pictures/Wallpapers --position top-right
+```
+
+```bash
+fay ~/Pictures/Wallpapers --x 960 --y 860
+```
+
 `--visible-cards` is capped at `15` (default `5`). If the computed count is even, it is reduced by one so both sides stay symmetric.
+`--position` supports preset locations and keeps a reasonable edge inset by default (for panels/taskbars).
+`--x` and `--y` allow manual placement using the window center in monitor coordinates and override `--position`.
 
 `--mode` is backend-agnostic and supports:
 - `auto` (default)

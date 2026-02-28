@@ -8,6 +8,15 @@ from fay.models import MODE_CHOICES
 
 
 BACKEND_CHOICES = ("auto", "feh", "gnome")
+POSITION_CHOICES = (
+    "bottom",
+    "top",
+    "center",
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+)
 DEFAULT_VISIBLE_CARDS = 5
 MAX_VISIBLE_CARDS = 15
 DEFAULT_PREVIEW_DELAY = 0.18
@@ -23,7 +32,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="fay",
-        description="Bottom overlay wallpaper picker using raylib.",
+        description="Wallpaper overlay picker using raylib.",
     )
     parser.set_defaults(command="pick")
     parser.add_argument(
@@ -47,10 +56,22 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--width", type=int, default=1000, help="Overlay width in pixels.")
     parser.add_argument("--height", type=int, default=260, help="Overlay height in pixels.")
     parser.add_argument(
-        "--margin",
+        "--position",
+        default="bottom",
+        choices=POSITION_CHOICES,
+        help="Preset window position (default: bottom).",
+    )
+    parser.add_argument(
+        "--x",
         type=int,
-        default=20,
-        help="Distance from bottom of the screen in pixels.",
+        default=None,
+        help="Manual center X position in monitor coordinates (requires --y, overrides --position).",
+    )
+    parser.add_argument(
+        "--y",
+        type=int,
+        default=None,
+        help="Manual center Y position in monitor coordinates (requires --x, overrides --position).",
     )
     parser.add_argument(
         "--monitor",
@@ -90,7 +111,10 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="Print environment/backend detection info and exit.",
     )
-    return parser.parse_args(args)
+    parsed = parser.parse_args(args)
+    if (parsed.x is None) != (parsed.y is None):
+        parser.error("--x and --y must be provided together")
+    return parsed
 
 
 def _parse_subcommand_args(args: Sequence[str]) -> argparse.Namespace:

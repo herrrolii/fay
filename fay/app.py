@@ -42,7 +42,7 @@ from fay.ui import (
     clamp,
     draw_preview_card,
     lerp,
-    place_window_at_bottom,
+    place_window,
     sample_curve,
 )
 
@@ -286,7 +286,14 @@ def run_picker(args: Any) -> int:
     rl.set_exit_key(KEY_NULL)
 
     monitor, monitor_width, monitor_height = monitor_size(args.monitor)
-    place_window_at_bottom(args.width, args.height, args.margin, monitor)
+    place_window(
+        args.width,
+        args.height,
+        monitor,
+        args.position,
+        args.x,
+        args.y,
+    )
 
     thumbnail_store = ThumbnailStore(
         get_thumbnail_cache_dir(), THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT
