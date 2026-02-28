@@ -96,7 +96,7 @@ fay ~/Pictures/Wallpapers --position top-right
 fay ~/Pictures/Wallpapers --x 960 --y 860
 ```
 
-`--visible-cards` is capped at `15` (default `5`). If the computed count is even, it is reduced by one so both sides stay symmetric.
+`--visible-cards` is capped at `15` (default `9`). If the computed count is even, it is reduced by one so both sides stay symmetric.
 `--position` supports preset locations and keeps a reasonable edge inset by default (for panels/taskbars).
 `--x` and `--y` allow manual placement using the window center in monitor coordinates and override `--position`.
 
