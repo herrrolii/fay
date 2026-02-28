@@ -2,7 +2,7 @@
 
 Small raylib overlay for X11 and GNOME that shows a carousel of wallpaper previews and applies the selected file.
 
-![fay demo](assets/fay-demo.gif)
+![fay demo](https://github.com/user-attachments/assets/06d5cf79-9571-4c18-acd0-aabea1171e16)
 > Demo wallpapers credit: [dharmx/walls](https://github.com/dharmx/walls).
 
 ## Install
