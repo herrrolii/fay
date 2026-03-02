@@ -73,10 +73,13 @@ def _parse_picker_args(args: Sequence[str]) -> argparse.Namespace:
     )
     parser.set_defaults(command="pick")
     parser.add_argument(
-        "directory",
-        nargs="?",
-        default=None,
-        help="Directory containing wallpaper images (defaults to current working directory).",
+        "directories",
+        nargs="*",
+        metavar="DIRECTORY",
+        help=(
+            "One or more directories containing wallpaper images "
+            "(defaults to current working directory)."
+        ),
     )
     parser.add_argument(
         "--backend",

@@ -18,6 +18,7 @@ fay ~/Pictures
 ```
 
 `fay` with no arguments defaults to the current working directory.
+You can also pass multiple source directories, for example: `fay ~/Pictures/walls ~/Downloads/wallpapers`.
 
 ## Supported Backends (auto-detected)
 
@@ -32,6 +33,12 @@ Open picker:
 
 ```bash
 fay ~/Pictures/Wallpapers
+```
+
+Open picker with multiple source directories:
+
+```bash
+fay ~/Pictures/Wallpapers ~/Pictures/cool_pics ~/Downloads/wallpapers
 ```
 
 Reapply last confirmed wallpaper (for login/startup hooks):
@@ -59,7 +66,7 @@ fay --help
 - Auto-preview while browsing is on by default (disable with `--no-preview`)
 - `Enter`: confirm current wallpaper and close
 - `Esc` (or `Q`): cancel and restore wallpaper from app start, then close
-- `R`: refresh directory contents
+- `R`: refresh source directory contents
 
 ## Useful Flags
 
@@ -99,6 +106,10 @@ fay ~/Pictures/Wallpapers --position top-right
 fay ~/Pictures/Wallpapers --x 960 --y 860
 ```
 
+```bash
+fay ~/Pictures/Wallpapers ~/Downloads/Walls --visible-cards 9
+```
+
 `--visible-cards` is capped at `15` (default `9`). If the computed count is even, it is reduced by one so both sides stay symmetric.
 `--position` supports preset locations and keeps a reasonable edge inset by default (for panels/taskbars).
 `--x` and `--y` allow manual placement using the window center in monitor coordinates and override `--position`.
@@ -113,6 +124,6 @@ fay ~/Pictures/Wallpapers --x 960 --y 860
 `--backend` supports: `auto` (default), `feh`, `gnome`.
 
 Auto-preview uses async backend calls and thumbnail caching. Thumbnails are stored in `~/.cache/fay/thumbnails` (or `$XDG_CACHE_HOME/fay/thumbnails`).
-First startup in a directory can be slower while `fay` builds its thumbnail/dimension cache.
+First startup in a source directory set can be slower while `fay` builds its thumbnail/dimension cache.
 
 Confirmed picks are stored in `~/.local/state/fay/last_selection.json` (or `$XDG_STATE_HOME/fay/last_selection.json`) and can be replayed with `fay restore`.

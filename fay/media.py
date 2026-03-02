@@ -5,7 +5,7 @@ from collections import deque
 import hashlib
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Sequence, cast
 
 import pyray as rl
 
@@ -27,6 +27,24 @@ def list_images(directory: Path) -> list[Path]:
         ],
         key=lambda path: path.name.lower(),
     )
+
+
+def list_images_from_directories(directories: Sequence[Path]) -> list[Path]:
+    images: list[Path] = []
+    seen: set[str] = set()
+
+    for directory in directories:
+        for path in list_images(directory):
+            try:
+                key = str(path.resolve())
+            except OSError:
+                key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            images.append(path)
+
+    return images
 
 
 def get_thumbnail_cache_dir() -> Path:

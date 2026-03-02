@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import threading
 from typing import Any, Callable
 
@@ -20,7 +21,7 @@ from fay.media import (
     TextureCache,
     ThumbnailStore,
     get_thumbnail_cache_dir,
-    list_images,
+    list_images_from_directories,
 )
 from fay.models import BackendResult, WallpaperState
 from fay.ui import (
@@ -235,6 +236,37 @@ def should_use_transparent_window(
     return use_x11_default
 
 
+def resolve_source_directories(
+    directories: list[str] | tuple[str, ...] | None,
+) -> tuple[list[Path], list[Path]]:
+    raw_directories = (
+        [Path.cwd()]
+        if not directories
+        else [Path(value).expanduser() for value in directories]
+    )
+    unique_directories: list[Path] = []
+    seen: set[str] = set()
+
+    for directory in raw_directories:
+        try:
+            key = str(directory.resolve())
+        except OSError:
+            key = str(directory)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_directories.append(directory)
+
+    valid: list[Path] = []
+    invalid: list[Path] = []
+    for directory in unique_directories:
+        if directory.exists() and directory.is_dir():
+            valid.append(directory)
+        else:
+            invalid.append(directory)
+    return valid, invalid
+
+
 def run_picker(args: Any) -> int:
     env = detect_environment()
     registry = BackendRegistry()
@@ -250,8 +282,20 @@ def run_picker(args: Any) -> int:
         focus_existing_window(WINDOW_TITLE)
         return 0
 
-    wallpaper_dir = Path(args.directory).expanduser() if args.directory else Path.cwd()
-    images = list_images(wallpaper_dir)
+    source_directories, invalid_directories = resolve_source_directories(
+        getattr(args, "directories", None)
+    )
+    for invalid_directory in invalid_directories:
+        print(f"fay: skipping invalid directory: {invalid_directory}", file=sys.stderr)
+    if not source_directories:
+        print("fay: no valid source directories provided")
+        try:
+            lock_handle.close()
+        except OSError:
+            pass
+        return 1
+
+    images = list_images_from_directories(source_directories)
     max_visible_cards = min(MAX_VISIBLE_CARDS, max(1, args.visible_cards))
     normalized_mode = args.mode
 
@@ -360,7 +404,7 @@ def run_picker(args: Any) -> int:
         visible_count = 1
         side_count = 0
         if rl.is_key_pressed(KEY_R):
-            images = list_images(wallpaper_dir)
+            images = list_images_from_directories(source_directories)
             selected = clamp(selected, 0, max(0, len(images) - 1))
             cache.clear()
             image_size_cache.clear()
